@@ -1,10 +1,15 @@
+import io
 import os
 import json
+from datetime import datetime
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import anthropic
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 st.set_page_config(
     page_title="YouTube 니치 발굴 대시보드",
@@ -155,6 +160,175 @@ def radar_chart(niche: dict):
     )
     return fig
 
+# ── Excel 내보내기 ────────────────────────────────────────────────────────────
+
+def style_header_cell(cell, bg_color="1F3864", font_color="FFFFFF"):
+    cell.font = Font(bold=True, color=font_color, size=11)
+    cell.fill = PatternFill("solid", fgColor=bg_color)
+    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin = Side(style="thin", color="CCCCCC")
+    cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+
+def style_data_cell(cell, bg_color="FFFFFF"):
+    cell.fill = PatternFill("solid", fgColor=bg_color)
+    cell.alignment = Alignment(vertical="center", wrap_text=True)
+    thin = Side(style="thin", color="DDDDDD")
+    cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+
+def generate_excel(result: dict, keywords: str) -> bytes:
+    niches = result.get("niches", [])
+    top_rec = result.get("top_recommendation", "")
+    market_summary = result.get("market_summary", "")
+
+    wb = Workbook()
+
+    # ── 시트 1: 요약 ──────────────────────────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "📊 분석 요약"
+
+    ws1.merge_cells("A1:F1")
+    ws1["A1"] = "🎬 YouTube 니치 발굴 분석 결과"
+    ws1["A1"].font = Font(bold=True, size=16, color="1F3864")
+    ws1["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws1.row_dimensions[1].height = 36
+
+    ws1["A2"] = "분석 키워드"
+    ws1["B2"] = keywords
+    ws1["A3"] = "분석 일시"
+    ws1["B3"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    ws1["A4"] = "최추천 니치"
+    ws1["B4"] = top_rec
+    ws1["A5"] = "시장 요약"
+    ws1["B5"] = market_summary
+    ws1["B5"].alignment = Alignment(wrap_text=True)
+    ws1.row_dimensions[5].height = 60
+
+    for row in ws1["A2:B5"]:
+        for cell in row:
+            thin = Side(style="thin", color="CCCCCC")
+            cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for cell in ws1["A2:A5"]:
+        cell[0].font = Font(bold=True)
+        cell[0].fill = PatternFill("solid", fgColor="E8F0FE")
+
+    ws1.column_dimensions["A"].width = 18
+    ws1.column_dimensions["B"].width = 60
+
+    ws1.append([])
+    headers_sum = ["순위", "니치명", "경쟁도\n(낮을수록 유리)", "수익성", "트렌드", "종합 기회 점수", "예상 월 조회수", "추천 포맷"]
+    ws1.append(headers_sum)
+    for i, h in enumerate(headers_sum, 1):
+        style_header_cell(ws1.cell(ws1.max_row, i))
+    ws1.row_dimensions[ws1.max_row].height = 30
+
+    sorted_niches = sorted(niches, key=lambda x: x["opportunity_score"], reverse=True)
+    for rank, niche in enumerate(sorted_niches, 1):
+        row = [
+            rank,
+            niche["name"],
+            niche["competition"],
+            niche["monetization"],
+            niche["trend"],
+            niche["opportunity_score"],
+            niche.get("estimated_monthly_views", ""),
+            niche.get("recommended_format", ""),
+        ]
+        ws1.append(row)
+        bg = "FFF9C4" if niche["name"] == top_rec else ("F8F9FA" if rank % 2 == 0 else "FFFFFF")
+        for col_idx, _ in enumerate(row, 1):
+            style_data_cell(ws1.cell(ws1.max_row, col_idx), bg)
+
+    for col_idx, width in enumerate([6, 22, 12, 10, 10, 14, 18, 12], 1):
+        ws1.column_dimensions[get_column_letter(col_idx)].width = width
+
+    # ── 시트 2: 상세 분석 ─────────────────────────────────────────────────────
+    ws2 = wb.create_sheet("🗂️ 상세 분석")
+    detail_headers = [
+        "니치명", "설명", "시청자층",
+        "경쟁도", "수익성", "트렌드", "종합 기회 점수",
+        "예상 월 조회수", "추천 포맷", "업로드 빈도",
+        "장점", "단점",
+    ]
+    ws2.append(detail_headers)
+    for i, _ in enumerate(detail_headers, 1):
+        style_header_cell(ws2.cell(1, i))
+    ws2.row_dimensions[1].height = 30
+
+    for idx, niche in enumerate(sorted_niches):
+        row = [
+            niche["name"],
+            niche.get("description", ""),
+            niche.get("target_audience", ""),
+            niche["competition"],
+            niche["monetization"],
+            niche["trend"],
+            niche["opportunity_score"],
+            niche.get("estimated_monthly_views", ""),
+            niche.get("recommended_format", ""),
+            niche.get("posting_frequency", ""),
+            " / ".join(niche.get("pros", [])),
+            " / ".join(niche.get("cons", [])),
+        ]
+        ws2.append(row)
+        bg = "F8F9FA" if idx % 2 == 0 else "FFFFFF"
+        for col_idx, _ in enumerate(row, 1):
+            style_data_cell(ws2.cell(ws2.max_row, col_idx), bg)
+        ws2.row_dimensions[ws2.max_row].height = 50
+
+    for col_idx, width in enumerate([22, 45, 30, 10, 10, 10, 14, 18, 12, 14, 35, 25], 1):
+        ws2.column_dimensions[get_column_letter(col_idx)].width = width
+
+    # ── 시트 3: 콘텐츠 아이디어 ───────────────────────────────────────────────
+    ws3 = wb.create_sheet("💡 콘텐츠 아이디어")
+    ws3.append(["니치명", "콘텐츠 아이디어 1", "아이디어 2", "아이디어 3", "아이디어 4", "아이디어 5"])
+    for i in range(1, 7):
+        style_header_cell(ws3.cell(1, i))
+    ws3.row_dimensions[1].height = 30
+
+    for idx, niche in enumerate(sorted_niches):
+        ideas = niche.get("content_ideas", [])
+        ideas += [""] * (5 - len(ideas))
+        row = [niche["name"]] + ideas[:5]
+        ws3.append(row)
+        bg = "F8F9FA" if idx % 2 == 0 else "FFFFFF"
+        for col_idx, _ in enumerate(row, 1):
+            style_data_cell(ws3.cell(ws3.max_row, col_idx), bg)
+        ws3.row_dimensions[ws3.max_row].height = 40
+
+    for col_idx, width in enumerate([22, 30, 30, 30, 30, 30], 1):
+        ws3.column_dimensions[get_column_letter(col_idx)].width = width
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def generate_csv(result: dict, keywords: str) -> bytes:
+    niches = result.get("niches", [])
+    rows = []
+    for niche in sorted(niches, key=lambda x: x["opportunity_score"], reverse=True):
+        rows.append({
+            "키워드": keywords,
+            "니치명": niche["name"],
+            "설명": niche.get("description", ""),
+            "경쟁도": niche["competition"],
+            "수익성": niche["monetization"],
+            "트렌드": niche["trend"],
+            "종합 기회 점수": niche["opportunity_score"],
+            "예상 월 조회수": niche.get("estimated_monthly_views", ""),
+            "시청자층": niche.get("target_audience", ""),
+            "추천 포맷": niche.get("recommended_format", ""),
+            "업로드 빈도": niche.get("posting_frequency", ""),
+            "장점": " / ".join(niche.get("pros", [])),
+            "단점": " / ".join(niche.get("cons", [])),
+            "콘텐츠 아이디어": " | ".join(niche.get("content_ideas", [])),
+            "최추천 여부": "✅" if niche["name"] == result.get("top_recommendation") else "",
+        })
+    return pd.DataFrame(rows).to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+
+
 # ── 페이지 레이아웃 ───────────────────────────────────────────────────────────
 
 st.title("🎬 YouTube 니치 발굴 대시보드")
@@ -299,6 +473,48 @@ if "result" in st.session_state:
                 for con in niche.get("cons", []):
                     st.write(f"- {con}")
 
+    # ── 섹션 4: 내보내기 ─────────────────────────────────────────────────────
+    st.header("☁️ 구글 드라이브로 내보내기", divider="gray")
+    st.caption("파일을 다운로드한 후 구글 드라이브에 업로드하세요.")
+
+    fname_base = f"youtube_niche_{datetime.now().strftime('%Y%m%d_%H%M')}"
+
+    dl_col1, dl_col2 = st.columns(2)
+    with dl_col1:
+        excel_bytes = generate_excel(result, keywords if "keywords" in dir() else "")
+        st.download_button(
+            label="📥 Excel로 다운로드 (.xlsx)",
+            data=excel_bytes,
+            file_name=f"{fname_base}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            type="primary",
+        )
+        st.caption("3개 시트: 요약 / 상세 분석 / 콘텐츠 아이디어")
+
+    with dl_col2:
+        csv_bytes = generate_csv(result, keywords if "keywords" in dir() else "")
+        st.download_button(
+            label="📥 CSV로 다운로드 (.csv)",
+            data=csv_bytes,
+            file_name=f"{fname_base}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+        st.caption("엑셀/구글 시트에서 바로 열 수 있는 형식")
+
+    with st.expander("📌 구글 드라이브 업로드 방법"):
+        st.markdown(
+            """
+            1. 위 버튼으로 파일 다운로드
+            2. [drive.google.com](https://drive.google.com) 접속
+            3. **+ 새로 만들기** → **파일 업로드** 클릭
+            4. 다운로드한 파일 선택 → 업로드 완료!
+
+            > **팁:** Excel 파일은 구글 드라이브에서 **구글 스프레드시트**로 바로 열 수 있습니다.
+            """
+        )
+
 else:
     # 초기 안내 화면
     st.info(
@@ -315,5 +531,6 @@ else:
         | 💰 수익성 분석 | 광고 수익 및 수익화 가능성 평가 |
         | 📈 트렌드 분석 | 현재 성장 중인 니치 파악 |
         | 🗂️ 콘텐츠 아이디어 | 각 니치별 구체적인 영상 아이디어 제공 |
+        | ☁️ 구글 드라이브 내보내기 | Excel/CSV 다운로드 후 드라이브에 저장 |
         """
     )
