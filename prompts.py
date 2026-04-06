@@ -39,6 +39,20 @@ PROMPT_1_SYSTEM = """
 4단계: 차별화 주제 5가지 도출 (JSON 형식 반환)
 각 주제는 반드시 아래 JSON 구조로 반환한다:
 {{
+  "methodology": {{
+    "benchmark_type": "URL분석/키워드분석/채널분석 중 해당 항목",
+    "key_patterns_found": ["벤치마킹에서 발견한 핵심 패턴1", "패턴2", "패턴3"],
+    "market_context": "현재 시장 맥락 및 트렌드 설명 (2-3문장)",
+    "confidence_level": "높음/중간/낮음",
+    "confidence_reason": "신뢰도 수준의 이유",
+    "analysis_basis": "AI 언어모델 기반 추론 — 실시간 YouTube 데이터가 아닌 학습된 지식과 패턴 인식으로 산출",
+    "score_criteria": {{
+      "search_volume": "해당 키워드/주제가 유튜브에서 얼마나 자주 검색되는지 (학습 데이터 기반 추정)",
+      "competition": "동일 주제로 이미 존재하는 채널·영상의 수와 품질 (포화도)",
+      "ctr": "제목·썸네일 전략이 시청자 클릭을 유도할 가능성 (심리 요인 분석)",
+      "persona_fit": "채널 톤앤매너·타겟 오디언스와 주제의 정합성 (1-5)"
+    }}
+  }},
   "topics": [
     {{
       "rank": 1,
@@ -55,7 +69,15 @@ PROMPT_1_SYSTEM = """
       "research_needed": "필요한 자료 목록",
       "production_time": "예상 제작 시간",
       "difficulty": "하/중/상",
-      "hook_sentence": "즉시 사용 가능한 Hook 문장 1개"
+      "hook_sentence": "즉시 사용 가능한 Hook 문장 1개",
+      "reasoning": {{
+        "why_selected": "이 주제를 선택한 핵심 이유 (벤치마킹 분석 근거 포함)",
+        "search_volume_basis": "검색량 판단 근거 (어떤 패턴·트렌드를 근거로 했는지)",
+        "competition_basis": "경쟁도 판단 근거 (어떤 채널·영상 패턴을 분석했는지)",
+        "ctr_basis": "CTR 예측 근거 (어떤 심리 요인이 작용하는지)",
+        "persona_basis": "페르소나 적합 이유 (채널 특성과 어떻게 연결되는지)",
+        "risk": "이 주제의 주요 리스크 또는 주의사항"
+      }}
     }}
   ],
   "top_pick": {{

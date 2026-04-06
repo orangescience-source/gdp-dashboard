@@ -154,6 +154,99 @@ def render_persona_card(channel_name: str):
     )
 
 
+def render_methodology_panel(methodology: dict):
+    """분석 방법론 및 신뢰도 패널 렌더링"""
+    if not methodology:
+        return
+
+    conf = methodology.get("confidence_level", "")
+    conf_color = {"높음": "#2ecc71", "중간": "#f39c12", "낮음": "#e74c3c"}.get(conf, "#888")
+    conf_icon = {"높음": "🟢", "중간": "🟡", "낮음": "🔴"}.get(conf, "⚪")
+
+    patterns = methodology.get("key_patterns_found", [])
+    patterns_html = "".join(
+        f'<li style="margin-bottom:3px;">{p}</li>' for p in patterns
+    )
+
+    score_criteria = methodology.get("score_criteria", {})
+
+    st.markdown(
+        f"""
+        <div style="
+            border: 1px solid #dce3ed;
+            border-radius: 12px;
+            padding: 16px 20px;
+            background: #f7faff;
+            margin-bottom: 16px;
+        ">
+            <div style="font-size:14px; font-weight:700; color:#1a1a1a; margin-bottom:10px;">
+                🔬 분석 로직 & 신뢰도
+            </div>
+
+            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+                <div style="background:#fff; border:1px solid #ddd; border-radius:8px;
+                            padding:8px 14px; flex:1; min-width:140px;">
+                    <div style="font-size:11px; color:#888;">신뢰도</div>
+                    <div style="font-size:15px; font-weight:700; color:{conf_color};">
+                        {conf_icon} {conf}
+                    </div>
+                    <div style="font-size:11px; color:#666; margin-top:3px;">
+                        {methodology.get("confidence_reason", "")}
+                    </div>
+                </div>
+                <div style="background:#fff; border:1px solid #ddd; border-radius:8px;
+                            padding:8px 14px; flex:1; min-width:140px;">
+                    <div style="font-size:11px; color:#888;">분석 유형</div>
+                    <div style="font-size:13px; font-weight:600; color:#333; margin-top:2px;">
+                        {methodology.get("benchmark_type", "")}
+                    </div>
+                </div>
+            </div>
+
+            <div style="font-size:12px; color:#555; background:#fff3cd; border-radius:6px;
+                        padding:8px 12px; margin-bottom:10px; border-left:3px solid #f39c12;">
+                ⚠️ <b>AI 분석 기준:</b> {methodology.get("analysis_basis", "")}
+            </div>
+
+            <div style="margin-bottom:10px;">
+                <div style="font-size:12px; font-weight:600; color:#333; margin-bottom:4px;">
+                    📌 발견된 핵심 패턴
+                </div>
+                <ul style="margin:0; padding-left:18px; font-size:12px; color:#555;">
+                    {patterns_html}
+                </ul>
+            </div>
+
+            <div style="font-size:12px; color:#555; background:#eef5ff; border-radius:6px;
+                        padding:8px 12px; margin-bottom:10px;">
+                📊 <b>시장 맥락:</b> {methodology.get("market_context", "")}
+            </div>
+
+            <details style="font-size:12px; color:#555;">
+                <summary style="cursor:pointer; font-weight:600; color:#444; margin-bottom:6px;">
+                    📐 점수 산정 기준 보기
+                </summary>
+                <div style="padding:8px 0 0 4px;">
+                    <div style="margin-bottom:4px;">
+                        <b>검색량:</b> {score_criteria.get("search_volume", "")}
+                    </div>
+                    <div style="margin-bottom:4px;">
+                        <b>경쟁도:</b> {score_criteria.get("competition", "")}
+                    </div>
+                    <div style="margin-bottom:4px;">
+                        <b>CTR:</b> {score_criteria.get("ctr", "")}
+                    </div>
+                    <div>
+                        <b>페르소나 적합도:</b> {score_criteria.get("persona_fit", "")}
+                    </div>
+                </div>
+            </details>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_topic_card(topic: dict, is_top: bool = False):
     rank = topic.get("rank", 0)
     fit = int(topic.get("persona_fit", 3))
@@ -226,6 +319,49 @@ def render_topic_card(topic: dict, is_top: bool = False):
         st.markdown(f"**필요 리서치:** {topic.get('research_needed','')}")
         st.markdown(f"**예상 제작 시간:** {topic.get('production_time','')}")
         st.info(f"🎤 Hook 문장: \"{topic.get('hook_sentence','')}\"")
+
+        # 분석 근거 (reasoning) 섹션
+        reasoning = topic.get("reasoning", {})
+        if reasoning:
+            st.markdown("---")
+            st.markdown("##### 🧠 이 주제 선정 근거 (AI 분석 로직)")
+            r_col1, r_col2 = st.columns(2)
+            with r_col1:
+                st.markdown(
+                    f"""
+                    <div style="background:#f0f8ff; border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:12px;">
+                        <div style="font-weight:700; color:#1a6bbf; margin-bottom:4px;">💡 선정 이유</div>
+                        <div style="color:#333;">{reasoning.get("why_selected","")}</div>
+                    </div>
+                    <div style="background:#f5fff5; border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:12px;">
+                        <div style="font-weight:700; color:#27ae60; margin-bottom:4px;">📈 검색량 판단 근거</div>
+                        <div style="color:#333;">{reasoning.get("search_volume_basis","")}</div>
+                    </div>
+                    <div style="background:#fffaf0; border-radius:8px; padding:10px 12px; font-size:12px;">
+                        <div style="font-weight:700; color:#e67e22; margin-bottom:4px;">⚔️ 경쟁도 판단 근거</div>
+                        <div style="color:#333;">{reasoning.get("competition_basis","")}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with r_col2:
+                st.markdown(
+                    f"""
+                    <div style="background:#fdf5ff; border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:12px;">
+                        <div style="font-weight:700; color:#8e44ad; margin-bottom:4px;">🖱️ CTR 예측 근거</div>
+                        <div style="color:#333;">{reasoning.get("ctr_basis","")}</div>
+                    </div>
+                    <div style="background:#f0faff; border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:12px;">
+                        <div style="font-weight:700; color:#2980b9; margin-bottom:4px;">🎭 페르소나 적합 이유</div>
+                        <div style="color:#333;">{reasoning.get("persona_basis","")}</div>
+                    </div>
+                    <div style="background:#fff5f5; border-radius:8px; padding:10px 12px; font-size:12px; border-left:3px solid #e74c3c;">
+                        <div style="font-weight:700; color:#e74c3c; margin-bottom:4px;">⚠️ 리스크 / 주의사항</div>
+                        <div style="color:#333;">{reasoning.get("risk","")}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
         if st.button(
             "이 주제로 썸네일·제목 전략 생성 →",
@@ -448,6 +584,9 @@ def render_topic_tab():
             f"7일 누적: **{top_pick.get('day7_views','')}**  |  "
             f"구독 전환율: **{top_pick.get('subscribe_rate','')}**"
         )
+
+        # 분석 방법론 패널
+        render_methodology_panel(result.get("methodology", {}))
 
         # 주제 카드 — 탑픽 먼저
         topics = result.get("topics", [])
