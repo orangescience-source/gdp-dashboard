@@ -40,6 +40,55 @@ def build_persona_block(channel_name: str) -> str:
     )
 
 
+def _extract_json(raw: str) -> dict:
+    """응답 텍스트에서 JSON 객체를 추출하고 파싱한다."""
+    # 마크다운 코드펜스 제거
+    text = raw.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        for part in parts:
+            part = part.strip()
+            if part.startswith("json"):
+                part = part[4:].strip()
+            try:
+                return json.loads(part)
+            except json.JSONDecodeError:
+                continue
+
+    # 중괄호로 시작하는 첫 번째 JSON 객체 추출
+    start = text.find("{")
+    if start == -1:
+        raise json.JSONDecodeError("No JSON object found", text, 0)
+
+    # 중첩 중괄호 균형을 맞춰 끝 위치 탐색
+    depth = 0
+    end = start
+    in_string = False
+    escape = False
+    for i, ch in enumerate(text[start:], start):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+
+    json_str = text[start: end + 1]
+    return json.loads(json_str)
+
+
 def call_claude_prompt1(channel_name, benchmark_input, video_length, extra_req):
     persona_block = build_persona_block(channel_name)
     system_prompt = PROMPT_1_SYSTEM.format(persona_block=persona_block)
@@ -48,21 +97,31 @@ def call_claude_prompt1(channel_name, benchmark_input, video_length, extra_req):
         f"벤치마킹 대상: {benchmark_input}\n"
         f"원하는 영상 길이: {video_length}\n"
         f"추가 요구사항: {extra_req if extra_req else '없음'}\n\n"
-        "위 정보를 바탕으로 프롬프트 1을 실행하여 JSON 형식으로 결과를 반환하라."
+        "위 정보를 바탕으로 프롬프트 1을 실행하여 JSON 형식으로 결과를 반환하라.\n"
+        "중요: 응답은 반드시 완전한 JSON이어야 하며 중간에 잘리지 않아야 한다."
     )
     client = _get_client()
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4000,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
+
+    last_error = None
+    for attempt in range(2):  # 실패 시 1회 재시도
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=8000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        raw = response.content[0].text.strip()
+        try:
+            return _extract_json(raw)
+        except json.JSONDecodeError as e:
+            last_error = e
+            if attempt == 0:
+                continue  # 한 번 더 시도
+
+    raise json.JSONDecodeError(
+        f"2회 시도 후 파싱 실패: {last_error}",
+        "", 0
     )
-    raw = response.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    return json.loads(raw.strip())
 
 
 # ── UI 컴포넌트 ───────────────────────────────────────────────────────────────
