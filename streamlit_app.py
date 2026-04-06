@@ -10,6 +10,7 @@ import anthropic
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from tab_topic import render_topic_tab
 
 st.set_page_config(
     page_title="YouTube 니치 발굴 대시보드",
@@ -331,10 +332,12 @@ def generate_csv(result: dict, keywords: str) -> bytes:
 
 # ── 페이지 레이아웃 ───────────────────────────────────────────────────────────
 
-st.title("🎬 YouTube 니치 발굴 대시보드")
-st.caption("Claude AI가 분석하는 유튜브 채널 니치 주제 발굴 도구")
+st.title("🎬 YouTube 채널 전략 도구")
+st.caption("Claude AI가 분석하는 유튜브 채널 전략 플랫폼")
 
-# ── 사이드바 ──────────────────────────────────────────────────────────────────
+tab1, tab2 = st.tabs(["🔍 니치 발굴", "📊 주제 발굴"])
+
+# ── 사이드바 (니치 발굴 탭용) ─────────────────────────────────────────────────
 
 with st.sidebar:
     st.header("⚙️ 분석 설정")
@@ -370,167 +373,168 @@ with st.sidebar:
         "- 기회 점수: 세 지표 종합 (1-10)"
     )
 
-# ── 메인 콘텐츠 ───────────────────────────────────────────────────────────────
+# ── 탭 1: 니치 발굴 ──────────────────────────────────────────────────────────
 
-if run_btn:
-    if not api_key:
-        st.error("API 키를 입력해주세요.")
-    elif not keywords.strip():
-        st.warning("관심 키워드를 입력해주세요.")
+with tab1:
+    if run_btn:
+        if not api_key:
+            st.error("API 키를 입력해주세요.")
+        elif not keywords.strip():
+            st.warning("관심 키워드를 입력해주세요.")
+        else:
+            with st.spinner("Claude AI가 니치를 분석 중입니다... (10-30초 소요)"):
+                try:
+                    result = analyze_niches(api_key, keywords.strip(), n_niches)
+                    st.session_state["result"] = result
+                except json.JSONDecodeError as e:
+                    st.error(f"응답 파싱 오류: {e}\n다시 시도해주세요.")
+                except Exception as e:
+                    st.error(f"분석 오류: {e}")
+
+    if "result" in st.session_state:
+        result = st.session_state["result"]
+        niches = result.get("niches", [])
+        top_rec = result.get("top_recommendation", "")
+        market_summary = result.get("market_summary", "")
+
+        if not niches:
+            st.warning("분석 결과가 없습니다. 다시 시도해주세요.")
+            st.stop()
+
+        df = pd.DataFrame(niches)
+
+        # ── 섹션 1: 요약 메트릭 ──────────────────────────────────────────────
+        st.header("📊 분석 요약", divider="gray")
+
+        col1, col2, col3, col4 = st.columns(4)
+        avg_comp = df["competition"].mean()
+        avg_mono = df["monetization"].mean()
+        avg_trend = df["trend"].mean()
+
+        col1.metric("🏆 최추천 니치", top_rec)
+        col2.metric("📊 평균 경쟁도", f"{avg_comp:.1f} / 10", help="낮을수록 진입 유리")
+        col3.metric("💰 평균 수익성", f"{avg_mono:.1f} / 10")
+        col4.metric("📈 평균 트렌드", f"{avg_trend:.1f} / 10")
+
+        if market_summary:
+            with st.expander("📝 시장 분석 요약 보기"):
+                st.write(market_summary)
+
+        st.divider()
+
+        # ── 섹션 2: 차트 ─────────────────────────────────────────────────────
+        st.header("📈 시각화 분석", divider="gray")
+
+        chart_col1, chart_col2 = st.columns(2)
+        with chart_col1:
+            st.plotly_chart(bubble_chart(df), use_container_width=True)
+        with chart_col2:
+            st.plotly_chart(opportunity_bar(df), use_container_width=True)
+
+        st.divider()
+
+        # ── 섹션 3: 니치 카드 ────────────────────────────────────────────────
+        st.header("🗂️ 니치 상세 분석", divider="gray")
+
+        for niche in sorted(niches, key=lambda x: x["opportunity_score"], reverse=True):
+            badge = "⭐ 최추천" if niche["name"] == top_rec else ""
+            with st.expander(f"**{niche['name']}** {badge}  —  기회 점수: {niche['opportunity_score']}/10"):
+                left, right = st.columns([2, 1])
+
+                with left:
+                    st.write(niche["description"])
+                    st.write(f"**시청자층:** {niche['target_audience']}")
+                    st.write(f"**예상 월 조회수:** {niche['estimated_monthly_views']}")
+                    st.write(f"**추천 포맷:** {niche['recommended_format']}  |  **업로드 빈도:** {niche['posting_frequency']}")
+                    st.write("**점수**")
+                    score_data = {
+                        "경쟁도 (낮을수록 유리)": niche["competition"],
+                        "수익성": niche["monetization"],
+                        "트렌드": niche["trend"],
+                        "종합 기회 점수": niche["opportunity_score"],
+                    }
+                    for label, val in score_data.items():
+                        st.progress(int(val * 10), text=f"{label}: {val}/10")
+
+                with right:
+                    st.plotly_chart(radar_chart(niche), use_container_width=True)
+
+                idea_col, pro_col, con_col = st.columns(3)
+                with idea_col:
+                    st.write("**💡 콘텐츠 아이디어**")
+                    for idea in niche.get("content_ideas", []):
+                        st.write(f"- {idea}")
+                with pro_col:
+                    st.write("**✅ 장점**")
+                    for pro in niche.get("pros", []):
+                        st.write(f"- {pro}")
+                with con_col:
+                    st.write("**⚠️ 단점**")
+                    for con in niche.get("cons", []):
+                        st.write(f"- {con}")
+
+        # ── 섹션 4: 내보내기 ─────────────────────────────────────────────────
+        st.header("☁️ 구글 드라이브로 내보내기", divider="gray")
+        st.caption("파일을 다운로드한 후 구글 드라이브에 업로드하세요.")
+
+        fname_base = f"youtube_niche_{datetime.now().strftime('%Y%m%d_%H%M')}"
+
+        dl_col1, dl_col2 = st.columns(2)
+        with dl_col1:
+            excel_bytes = generate_excel(result, keywords)
+            st.download_button(
+                label="📥 Excel로 다운로드 (.xlsx)",
+                data=excel_bytes,
+                file_name=f"{fname_base}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                type="primary",
+            )
+            st.caption("3개 시트: 요약 / 상세 분석 / 콘텐츠 아이디어")
+
+        with dl_col2:
+            csv_bytes = generate_csv(result, keywords)
+            st.download_button(
+                label="📥 CSV로 다운로드 (.csv)",
+                data=csv_bytes,
+                file_name=f"{fname_base}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+            st.caption("엑셀/구글 시트에서 바로 열 수 있는 형식")
+
+        with st.expander("📌 구글 드라이브 업로드 방법"):
+            st.markdown(
+                """
+                1. 위 버튼으로 파일 다운로드
+                2. [drive.google.com](https://drive.google.com) 접속
+                3. **+ 새로 만들기** → **파일 업로드** 클릭
+                4. 다운로드한 파일 선택 → 업로드 완료!
+
+                > **팁:** Excel 파일은 구글 드라이브에서 **구글 스프레드시트**로 바로 열 수 있습니다.
+                """
+            )
+
     else:
-        with st.spinner("Claude AI가 니치를 분석 중입니다... (10-30초 소요)"):
-            try:
-                result = analyze_niches(api_key, keywords.strip(), n_niches)
-                st.session_state["result"] = result
-            except json.JSONDecodeError as e:
-                st.error(f"응답 파싱 오류: {e}\n다시 시도해주세요.")
-            except Exception as e:
-                st.error(f"분석 오류: {e}")
-
-# 결과 렌더링
-if "result" in st.session_state:
-    result = st.session_state["result"]
-    niches = result.get("niches", [])
-    top_rec = result.get("top_recommendation", "")
-    market_summary = result.get("market_summary", "")
-
-    if not niches:
-        st.warning("분석 결과가 없습니다. 다시 시도해주세요.")
-        st.stop()
-
-    df = pd.DataFrame(niches)
-
-    # ── 섹션 1: 요약 메트릭 ──────────────────────────────────────────────────
-    st.header("📊 분석 요약", divider="gray")
-
-    col1, col2, col3, col4 = st.columns(4)
-    avg_comp = df["competition"].mean()
-    avg_mono = df["monetization"].mean()
-    avg_trend = df["trend"].mean()
-    best_score = df["opportunity_score"].max()
-
-    col1.metric("🏆 최추천 니치", top_rec)
-    col2.metric("📊 평균 경쟁도", f"{avg_comp:.1f} / 10", help="낮을수록 진입 유리")
-    col3.metric("💰 평균 수익성", f"{avg_mono:.1f} / 10")
-    col4.metric("📈 평균 트렌드", f"{avg_trend:.1f} / 10")
-
-    if market_summary:
-        with st.expander("📝 시장 분석 요약 보기"):
-            st.write(market_summary)
-
-    st.divider()
-
-    # ── 섹션 2: 차트 ─────────────────────────────────────────────────────────
-    st.header("📈 시각화 분석", divider="gray")
-
-    chart_col1, chart_col2 = st.columns(2)
-    with chart_col1:
-        st.plotly_chart(bubble_chart(df), use_container_width=True)
-    with chart_col2:
-        st.plotly_chart(opportunity_bar(df), use_container_width=True)
-
-    st.divider()
-
-    # ── 섹션 3: 니치 카드 ────────────────────────────────────────────────────
-    st.header("🗂️ 니치 상세 분석", divider="gray")
-
-    for niche in sorted(niches, key=lambda x: x["opportunity_score"], reverse=True):
-        badge = "⭐ 최추천" if niche["name"] == top_rec else ""
-        with st.expander(f"**{niche['name']}** {badge}  —  기회 점수: {niche['opportunity_score']}/10"):
-
-            left, right = st.columns([2, 1])
-
-            with left:
-                st.write(niche["description"])
-                st.write(f"**시청자층:** {niche['target_audience']}")
-                st.write(f"**예상 월 조회수:** {niche['estimated_monthly_views']}")
-                st.write(f"**추천 포맷:** {niche['recommended_format']}  |  **업로드 빈도:** {niche['posting_frequency']}")
-
-                st.write("**점수**")
-                score_data = {
-                    "경쟁도 (낮을수록 유리)": niche["competition"],
-                    "수익성": niche["monetization"],
-                    "트렌드": niche["trend"],
-                    "종합 기회 점수": niche["opportunity_score"],
-                }
-                for label, val in score_data.items():
-                    st.progress(int(val * 10), text=f"{label}: {val}/10")
-
-            with right:
-                st.plotly_chart(radar_chart(niche), use_container_width=True)
-
-            idea_col, pro_col, con_col = st.columns(3)
-            with idea_col:
-                st.write("**💡 콘텐츠 아이디어**")
-                for idea in niche.get("content_ideas", []):
-                    st.write(f"- {idea}")
-            with pro_col:
-                st.write("**✅ 장점**")
-                for pro in niche.get("pros", []):
-                    st.write(f"- {pro}")
-            with con_col:
-                st.write("**⚠️ 단점**")
-                for con in niche.get("cons", []):
-                    st.write(f"- {con}")
-
-    # ── 섹션 4: 내보내기 ─────────────────────────────────────────────────────
-    st.header("☁️ 구글 드라이브로 내보내기", divider="gray")
-    st.caption("파일을 다운로드한 후 구글 드라이브에 업로드하세요.")
-
-    fname_base = f"youtube_niche_{datetime.now().strftime('%Y%m%d_%H%M')}"
-
-    dl_col1, dl_col2 = st.columns(2)
-    with dl_col1:
-        excel_bytes = generate_excel(result, keywords if "keywords" in dir() else "")
-        st.download_button(
-            label="📥 Excel로 다운로드 (.xlsx)",
-            data=excel_bytes,
-            file_name=f"{fname_base}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            type="primary",
+        st.info(
+            "왼쪽 사이드바에서 API 키와 관심 키워드를 입력한 후 **'니치 발굴 시작'** 버튼을 눌러주세요.",
+            icon="👈",
         )
-        st.caption("3개 시트: 요약 / 상세 분석 / 콘텐츠 아이디어")
-
-    with dl_col2:
-        csv_bytes = generate_csv(result, keywords if "keywords" in dir() else "")
-        st.download_button(
-            label="📥 CSV로 다운로드 (.csv)",
-            data=csv_bytes,
-            file_name=f"{fname_base}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-        st.caption("엑셀/구글 시트에서 바로 열 수 있는 형식")
-
-    with st.expander("📌 구글 드라이브 업로드 방법"):
         st.markdown(
             """
-            1. 위 버튼으로 파일 다운로드
-            2. [drive.google.com](https://drive.google.com) 접속
-            3. **+ 새로 만들기** → **파일 업로드** 클릭
-            4. 다운로드한 파일 선택 → 업로드 완료!
-
-            > **팁:** Excel 파일은 구글 드라이브에서 **구글 스프레드시트**로 바로 열 수 있습니다.
+            ### 이 앱으로 할 수 있는 것
+            | 기능 | 설명 |
+            |------|------|
+            | 🔍 키워드 기반 니치 발굴 | 관심사 키워드로 유망 유튜브 니치 발견 |
+            | 📊 경쟁도 분석 | 각 니치의 진입 장벽과 경쟁 강도 평가 |
+            | 💰 수익성 분석 | 광고 수익 및 수익화 가능성 평가 |
+            | 📈 트렌드 분석 | 현재 성장 중인 니치 파악 |
+            | 🗂️ 콘텐츠 아이디어 | 각 니치별 구체적인 영상 아이디어 제공 |
+            | ☁️ 구글 드라이브 내보내기 | Excel/CSV 다운로드 후 드라이브에 저장 |
             """
         )
 
-else:
-    # 초기 안내 화면
-    st.info(
-        "왼쪽 사이드바에서 API 키와 관심 키워드를 입력한 후 **'니치 발굴 시작'** 버튼을 눌러주세요.",
-        icon="👈",
-    )
-    st.markdown(
-        """
-        ### 이 앱으로 할 수 있는 것
-        | 기능 | 설명 |
-        |------|------|
-        | 🔍 키워드 기반 니치 발굴 | 관심사 키워드로 유망 유튜브 니치 발견 |
-        | 📊 경쟁도 분석 | 각 니치의 진입 장벽과 경쟁 강도 평가 |
-        | 💰 수익성 분석 | 광고 수익 및 수익화 가능성 평가 |
-        | 📈 트렌드 분석 | 현재 성장 중인 니치 파악 |
-        | 🗂️ 콘텐츠 아이디어 | 각 니치별 구체적인 영상 아이디어 제공 |
-        | ☁️ 구글 드라이브 내보내기 | Excel/CSV 다운로드 후 드라이브에 저장 |
-        """
-    )
+# ── 탭 2: 주제 발굴 ──────────────────────────────────────────────────────────
+
+with tab2:
+    render_topic_tab()
