@@ -42,8 +42,9 @@ def build_persona_block(channel_name: str) -> str:
 
 def _extract_json(raw: str) -> dict:
     """응답 텍스트에서 JSON 객체를 추출하고 파싱한다."""
-    # 마크다운 코드펜스 제거
     text = raw.strip()
+
+    # 마크다운 코드펜스 제거
     if text.startswith("```"):
         parts = text.split("```")
         for part in parts:
@@ -55,6 +56,12 @@ def _extract_json(raw: str) -> dict:
             except json.JSONDecodeError:
                 continue
 
+    # 전체 텍스트 직접 파싱 시도
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
     # 중괄호로 시작하는 첫 번째 JSON 객체 추출
     start = text.find("{")
     if start == -1:
@@ -62,7 +69,7 @@ def _extract_json(raw: str) -> dict:
 
     # 중첩 중괄호 균형을 맞춰 끝 위치 탐색
     depth = 0
-    end = start
+    end = -1
     in_string = False
     escape = False
     for i, ch in enumerate(text[start:], start):
@@ -85,6 +92,12 @@ def _extract_json(raw: str) -> dict:
                 end = i
                 break
 
+    if end == -1:
+        # 응답이 잘린 경우 — 끝까지 있는 텍스트로 파싱 시도
+        raise json.JSONDecodeError(
+            "JSON이 중간에 잘렸습니다 (응답 토큰 초과)", text, len(text)
+        )
+
     json_str = text[start: end + 1]
     return json.loads(json_str)
 
@@ -98,7 +111,8 @@ def call_claude_prompt1(channel_name, benchmark_input, video_length, extra_req):
         f"원하는 영상 길이: {video_length}\n"
         f"추가 요구사항: {extra_req if extra_req else '없음'}\n\n"
         "위 정보를 바탕으로 프롬프트 1을 실행하여 JSON 형식으로 결과를 반환하라.\n"
-        "중요: 응답은 반드시 완전한 JSON이어야 하며 중간에 잘리지 않아야 한다."
+        "중요: 각 필드는 간결하게 작성하라 (한 필드당 100자 이내). "
+        "응답은 반드시 완전한 JSON이어야 한다."
     )
     client = _get_client()
 
@@ -106,7 +120,7 @@ def call_claude_prompt1(channel_name, benchmark_input, video_length, extra_req):
     for attempt in range(2):  # 실패 시 1회 재시도
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=8000,
+            max_tokens=16000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         )
