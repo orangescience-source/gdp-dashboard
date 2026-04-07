@@ -149,18 +149,44 @@ Hook 문장 후보: {hook_sentence}
 각 조합에 대해 위 5가지 기준 점수(각 1점)를 합산하여 synergy_score(0-5)를 부여한다.
 rank 1 조합은 반드시 synergy_score 4 이상이어야 한다.
 
+[유튜브 썸네일 가이드라인 준수 규칙 — 절대 위반 금지]
+이미지 프롬프트는 유튜브 커뮤니티 가이드라인(YouTube Community Guidelines) 및
+광고 게재 정책(YouTube Advertiser-Friendly Content Guidelines)을 반드시 준수해야 한다.
+
+❌ 절대 포함 금지 (위반 시 영상 삭제 / 채널 제재):
+1. 선정적·성적 요소: 노출, 성적 자세, 성행위 암시 이미지 생성 금지
+2. 폭력·유혈: 과도한 피, 부상, 폭력 장면 묘사 금지
+3. 공포·혐오: 시체, 절단, 심각한 공포 이미지 금지
+4. 혐오 표현: 인종·성별·종교·장애 비하를 연상시키는 시각 요소 금지
+5. 실존 인물 허위 묘사: 공인의 얼굴을 오해 유발 방식으로 합성하거나 가짜 발언 연출 금지
+6. 미성년자 관련: 미성년자의 성적 묘사 또는 착취적 장면 절대 금지
+7. 클릭베이트 오해: 실제 영상 내용과 전혀 무관한 자극적 허위 이미지 금지
+8. 무기·마약 미화: 총기·폭발물·마약류를 긍정적으로 묘사하거나 사용법을 암시하는 이미지 금지
+
+⚠️ 주의 요소 (광고 수익 제한 가능):
+- 과도하게 자극적인 표정(극단적 공포·분노): 감정 표현은 자연스럽게 유지
+- 대규모 재난·사고 장면: 뉴스 보도 맥락이 아닌 선정적 묘사 금지
+- 담배·알코올의 긍정적 묘사: 배경 소품 수준으로 제한
+
+✅ 허용 가이드라인 준수 방향:
+- 감정 표현: 놀람·호기심·진지함 수준으로 표현 (과도한 공포 과장 금지)
+- 배경 장면: 실제 영상 주제와 연관된 사실적 묘사 사용
+- 텍스트: 영상에서 실제로 다루는 내용을 기반으로 작성 (허위 약속 금지)
+- 인물 표현: 존엄성을 훼손하지 않는 자연스러운 표정과 포즈
+
 [나노바나나 이미지 프롬프트 작성 규칙]
 image_prompts는 반드시 각 썸네일(thumbnail_id)과 1:1로 연결된다.
 full_prompt_en에는 아래 5개 요소를 반드시 포함한다:
 
-① SCENE: 배경 장면 묘사 (장소, 분위기, 색감, 조명)
-② CHARACTER: 인물 묘사 + 위치 (오프센터 배치, 표정, 의상)
+① SCENE: 배경 장면 묘사 (장소, 분위기, 색감, 조명) — 유튜브 가이드라인 준수 장면만
+② CHARACTER: 인물 묘사 + 위치 (오프센터 배치, 자연스러운 표정, 의상)
    - protagonist_needed가 "미등장권장"이면 CHARACTER 생략 가능
+   - 표정은 "shocked but not grotesque", "serious", "curious" 수준으로 표현
 ③ TEXT OVERLAY: 한국어 텍스트를 아래 형식으로 명시
    - Speech bubble top-left: "[말풍선 텍스트]" white bold Korean text, thick black outline
    - Bottom line 1 center: "[1행 텍스트]" yellow bold Korean text, thick black outline
    - Bottom line 2 center: "[2행 텍스트]" light-green bold Korean text, thick black outline
-④ STYLE: 화풍/스타일 (photorealistic / illustration / cinematic 등)
+④ STYLE: 화풍/스타일 (photorealistic / illustration / cinematic 등) — safe-for-work 명시
 ⑤ QUALITY: --ar 16:9 --style raw --q 2 (나노바나나 권장 파라미터)
 
 [CRITICAL OUTPUT RULE]
@@ -239,7 +265,7 @@ full_prompt_en에는 아래 5개 요소를 반드시 포함한다:
         "line2": "썸네일과 동일한 2행 한국어 텍스트",
         "line2_color": "light-green 또는 red"
       }},
-      "full_prompt_en": "SCENE: [배경묘사]. CHARACTER: [인물+위치, 또는 생략]. TEXT OVERLAY: Speech bubble '[말풍선한국어]' white bold Korean, thick black outline; Bottom line1 '[1행한국어]' yellow bold Korean, thick black outline; Bottom line2 '[2행한국어]' light-green bold Korean, thick black outline. STYLE: [화풍]. --ar 16:9 --style raw --q 2"
+      "full_prompt_en": "SCENE: [배경묘사]. CHARACTER: [인물+위치, 자연스러운 표정, 또는 생략]. TEXT OVERLAY: Speech bubble '[말풍선한국어]' white bold Korean, thick black outline; Bottom line1 '[1행한국어]' yellow bold Korean, thick black outline; Bottom line2 '[2행한국어]' light-green bold Korean, thick black outline. STYLE: [화풍], safe for work, YouTube thumbnail compliant, no violence, no gore, no explicit content. --ar 16:9 --style raw --q 2"
     }}
   ]
 }}
