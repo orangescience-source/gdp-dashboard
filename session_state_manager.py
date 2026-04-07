@@ -344,6 +344,11 @@ def init_session_state():
         UPLOAD_DESCRIPTION: "",
         UPLOAD_TAGS: "",
         UPLOAD_TISTORY_URL: "",
+        # 프롬프트 5: 시각화 프롬프트 생성기
+        "p5_result_raw":    "",
+        "p5_result_scenes": [],
+        "p5_last_scene_num": 1,
+        "p5_generating":    False,
     }
     for key, default in defaults.items():
         if key not in st.session_state:
@@ -362,6 +367,7 @@ def reset_pipeline():
         P4_RESULT, P4_SCRIPT_FRONT, P4_SCRIPT_BACK,
         P4_SCRIPT_FULL, P4_VIZ_MEMO, P4_CONFIRMED,
         UPLOAD_DESCRIPTION, UPLOAD_TAGS, UPLOAD_TISTORY_URL,
+        "p5_result_raw", "p5_result_scenes", "p5_last_scene_num",
     ]
     for key in keys_to_clear:
         if key in st.session_state:

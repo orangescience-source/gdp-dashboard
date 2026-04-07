@@ -15,6 +15,7 @@ from tab_thumbnail import render_thumbnail_tab
 from tab_structure import render_structure_tab
 from tab_script import render_script_tab
 from tab_package import render_package_tab
+from tab_visualization import render_visualization_tab
 from tab_deploy import render_deploy_tab
 from session_state_manager import init_session_state, reset_pipeline
 from error_handler import handle_api_error
@@ -363,7 +364,10 @@ st.markdown("""
 st.title("🎬 YouTube 채널 전략 도구")
 st.caption("Claude AI가 분석하는 유튜브 채널 전략 플랫폼")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목", "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지", "🚀 발행/배포"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    "🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목", "📐 대본 구조",
+    "📝 대본 작성", "📦 업로드 패키지", "🖼️ 시각화 프롬프트", "🚀 발행/배포",
+])
 
 # ── 사이드바 (니치 발굴 탭용) ─────────────────────────────────────────────────
 
@@ -407,13 +411,15 @@ with st.sidebar:
     p2_done = bool(st.session_state.get("p2_title"))
     p3_done = bool(st.session_state.get("p3_structure"))
     p4_done = bool(st.session_state.get("p4_confirmed"))
+    p5_done = bool(st.session_state.get("p5_result_scenes"))
 
     st.markdown(
         f"**기획 진행 현황**  \n"
         f"{'✅' if p1_done else '⬜'} 주제 발굴  \n"
         f"{'✅' if p2_done else '⬜'} 썸네일·제목  \n"
         f"{'✅' if p3_done else '⬜'} 대본 구조  \n"
-        f"{'✅' if p4_done else '⬜'} 대본 완성"
+        f"{'✅' if p4_done else '⬜'} 대본 완성  \n"
+        f"{'✅' if p5_done else '⬜'} 시각화 프롬프트"
     )
 
     st.divider()
@@ -616,7 +622,12 @@ with tab5:
 with tab6:
     render_package_tab()
 
-# ── 탭 7: 발행/배포 ──────────────────────────────────────────────────────────
+# ── 탭 7: 시각화 프롬프트 ────────────────────────────────────────────────────
 
 with tab7:
+    render_visualization_tab()
+
+# ── 탭 8: 발행/배포 ──────────────────────────────────────────────────────────
+
+with tab8:
     render_deploy_tab()
