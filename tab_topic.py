@@ -11,7 +11,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 from channel_db import CHANNEL_DB
 from prompts import PROMPT_1_SYSTEM
 from session_state_manager import (
-    P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
+    P1_CHANNEL, P1_BENCHMARK, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
     render_pipeline_status,
 )
 
@@ -534,7 +534,9 @@ def render_topic_tab():
             channel_name = st.text_input("채널명 직접 입력", key="p1_channel_custom")
         else:
             channel_name = channel_select
-            st.session_state["p1_channel"] = channel_name
+        # 항상 session_state에 저장 (직접 입력 포함)
+        if channel_name:
+            st.session_state[P1_CHANNEL] = channel_name
 
         if channel_name and channel_name in CHANNEL_DB:
             render_persona_card(channel_name)
@@ -581,8 +583,8 @@ def render_topic_tab():
                         channel_name, benchmark_input, video_length, extra_req
                     )
                     st.session_state["p1_result"] = result
-                    st.session_state["p1_channel"] = channel_name
-                    st.session_state["p1_benchmark_saved"] = benchmark_input
+                    st.session_state[P1_CHANNEL]    = channel_name
+                    st.session_state[P1_BENCHMARK]  = benchmark_input
                 except json.JSONDecodeError as e:
                     st.error(f"JSON 파싱 오류: {e}\n다시 시도해주세요.")
                     st.stop()
@@ -631,8 +633,8 @@ def render_topic_tab():
 
         # 내보내기
         st.divider()
-        saved_channel = st.session_state.get("p1_channel", "")
-        saved_benchmark = st.session_state.get("p1_benchmark_saved", "")
+        saved_channel = st.session_state.get(P1_CHANNEL, "")
+        saved_benchmark = st.session_state.get(P1_BENCHMARK, "")
         fname = f"주제발굴_{saved_channel}_{datetime.now().strftime('%Y%m%d_%H%M')}"
 
         ec1, ec2 = st.columns(2)
