@@ -10,6 +10,10 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 
 from channel_db import CHANNEL_DB
 from prompts import PROMPT_1_SYSTEM
+from session_state_manager import (
+    P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
+    render_pipeline_status,
+)
 
 CHANNEL_NAMES = list(CHANNEL_DB.keys())
 
@@ -382,11 +386,12 @@ def render_topic_card(topic: dict, is_top: bool = False):
             key=f"to_prompt2_{rank}",
             type="primary",
         ):
-            st.session_state["p2_channel"] = st.session_state.get("p1_channel", "")
-            st.session_state["p2_topic_title"] = topic.get("title", "")
-            st.session_state["p2_core_message"] = topic.get("core_message", "")
-            st.session_state["p2_target_emotion"] = topic.get("target_emotion", "")
-            st.success("✅ 프롬프트 2 탭에 주제가 저장되었습니다! (2차 업데이트 후 자동 이동)")
+            st.session_state[P1_CHANNEL]      = st.session_state.get("p1_channel", "")
+            st.session_state[P1_TOPIC_TITLE]  = topic.get("title", "")
+            st.session_state[P1_CORE_MESSAGE] = topic.get("core_message", "")
+            st.session_state[P1_EMOTION]      = topic.get("target_emotion", "")
+            st.session_state[P1_HOOK]         = topic.get("hook_sentence", "")
+            st.success("✅ 주제가 저장되었습니다! 상단 '🎨 썸네일·제목' 탭으로 이동하세요.")
 
 
 # ── Excel 내보내기 ────────────────────────────────────────────────────────────
@@ -508,6 +513,7 @@ def export_to_excel(result: dict, channel_name: str, benchmark_input: str) -> by
 # ── 메인 탭 함수 ──────────────────────────────────────────────────────────────
 
 def render_topic_tab():
+    render_pipeline_status()
     st.header("📊 트렌드 기반 주제 발굴 & 경쟁 분석기")
     st.caption("Claude AI가 채널 페르소나에 맞게 차별화 주제 5가지를 도출합니다.")
 
