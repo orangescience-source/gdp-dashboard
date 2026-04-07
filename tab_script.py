@@ -1,66 +1,30 @@
-import re
-import json
-import io
 import os
-from datetime import datetime
-
+import io
 import streamlit as st
 import anthropic
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
+from datetime import datetime
 
 from channel_db import CHANNEL_DB
-from prompts import PROMPT_4_SYSTEM, PROMPT_4_SECTION_SYSTEM
+from prompts import PROMPT_4_SYSTEM_BASE, PROMPT_4_FRONT_SUFFIX, PROMPT_4_BACK_SUFFIX
 from session_state_manager import (
     P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
     P2_TITLE, P2_THUMBNAIL, P2_HOOK_30SEC,
-    P3_RESULT, P3_VIDEO_LENGTH, P3_STRUCTURE, P3_EMOTION_MAP, P3_MINI_HOOKS, P3_SCENE_META,
-    P4_RESULT, P4_SCRIPT, P4_TOTAL_WORDS, P4_WRITING_NOTES,
-    render_pipeline_status, render_p1_confirmed_card, render_p2_confirmed_card,
+    P3_RESULT, P3_VIDEO_LENGTH, P3_STRUCTURE,
+    P3_EMOTION_MAP, P3_MINI_HOOKS, P3_SCENE_META,
+    P4_RESULT, P4_SCRIPT_FRONT, P4_SCRIPT_BACK,
+    P4_SCRIPT_FULL, P4_VIZ_MEMO, P4_CONFIRMED,
+    render_pipeline_status,
+    render_p1_confirmed_card,
+    render_p2_confirmed_card,
+    render_p3_confirmed_card,
 )
 
 
 # ──────────────────────────────────────────
-# 상수
+# 클라이언트 (module-level 방지)
 # ──────────────────────────────────────────
 
-SECTION_CONFIG = {
-    "hook":     {"label": "HOOK",     "timecode": "00:00", "color": "#E53935", "target_words": 500},
-    "teaser":   {"label": "TEASER",   "timecode": "01:00", "color": "#FB8C00", "target_words": 500},
-    "big_idea": {"label": "BIG IDEA", "timecode": "02:00", "color": "#F9A825", "target_words": 500},
-    "intro":    {"label": "INTRO",    "timecode": "03:00", "color": "#43A047", "target_words": 500},
-    "body1":    {"label": "BODY 1",   "timecode": "04:00", "color": "#00897B", "target_words": 1600},
-    "body2":    {"label": "BODY 2",   "timecode": "07:00", "color": "#039BE5", "target_words": 1600},
-    "body3":    {"label": "BODY 3",   "timecode": "10:15", "color": "#1E88E5", "target_words": 1600},
-    "body4":    {"label": "BODY 4",   "timecode": "13:30", "color": "#5E35B1", "target_words": 1600},
-    "reveal":   {"label": "REVEAL",   "timecode": "17:00", "color": "#8E24AA", "target_words": 750},
-    "impact":   {"label": "IMPACT",   "timecode": "18:30", "color": "#D81B60", "target_words": 250},
-    "end":      {"label": "END",      "timecode": "19:00", "color": "#546E7A", "target_words": 500},
-}
-
-SECTION_ORDER = ["hook", "teaser", "big_idea", "intro", "body1", "body2", "body3", "body4", "reveal", "impact", "end"]
-
-SECTION_SPECIAL = {
-    "hook": "첫 문장에서 핵심 약속 즉시 등장. 클릭 이유를 3초 안에 제시.",
-    "teaser": "영상 전체 예고. 시청자가 기대할 3가지 포인트 명시.",
-    "big_idea": "핵심 아이디어를 숫자/사물/대비로 시각화. 추상적 설명 금지.",
-    "intro": "주인공 소개 + 문제 상황 공감. 시청자가 '나 얘기네'라고 느끼도록.",
-    "body1": "첫 번째 핵심 증거. 구체적 사례 또는 데이터 중심. 말미에 [MINI-HOOK].",
-    "body2": "두 번째 핵심 증거. 대조 인물 또는 군중 반응 장면 포함. 말미에 [MINI-HOOK].",
-    "body3": "세 번째 핵심 증거. 결과·여파 장면 중심. 감정 급변 포인트 필수. 말미에 [MINI-HOOK].",
-    "body4": "네 번째 핵심 증거. 클라이맥스 직전 최대 긴장감 조성. 말미에 [MINI-HOOK].",
-    "reveal": "가장 강렬한 반전 또는 핵심 진실. 시청자가 '아!'라고 외칠 순간.",
-    "impact": "시청자 삶과 직접 연결. '당신도 지금 이 상황일 수 있다'는 공감.",
-    "end": "명확한 행동 촉구 + 감성적 여운. 다음 영상 예고 또는 구독 CTA 자연스럽게.",
-}
-
-
-# ──────────────────────────────────────────
-# 클라이언트
-# ──────────────────────────────────────────
-
-def _get_client():
+def _get_client() -> anthropic.Anthropic:
     try:
         key = st.secrets.get("ANTHROPIC_API_KEY", "")
     except Exception:
@@ -70,39 +34,7 @@ def _get_client():
 
 
 # ──────────────────────────────────────────
-# JSON 파싱 방어
-# ──────────────────────────────────────────
-
-def _extract_json(text: str) -> str:
-    text = text.strip()
-    m = re.search(r"```json\s*([\s\S]*?)\s*```", text)
-    if m:
-        return m.group(1).strip()
-    m = re.search(r"```\s*([\s\S]*?)\s*```", text)
-    if m:
-        candidate = m.group(1).strip()
-        if candidate.startswith("{"):
-            return candidate
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        return text[start:end + 1]
-    return text
-
-
-def _safe_loads(text: str) -> dict:
-    json_str = _extract_json(text)
-    try:
-        return json.loads(json_str)
-    except json.JSONDecodeError as e:
-        preview = json_str[:300].replace("\n", " ")
-        raise json.JSONDecodeError(
-            f"JSON 파싱 실패 (앞 300자: {preview}...)", e.doc, e.pos
-        )
-
-
-# ──────────────────────────────────────────
-# 페르소나 블록
+# 헬퍼: 채널 페르소나 블록
 # ──────────────────────────────────────────
 
 def build_persona_block(channel_name: str) -> str:
@@ -115,60 +47,72 @@ def build_persona_block(channel_name: str) -> str:
         f"색상: {info['color_primary']} / {info['color_secondary']}\n"
         f"톤앤매너: {info['tone']}\n"
         f"타겟: {info['target']}\n"
-        f"썸네일 전략: {info['thumbnail_style']}\n"
         f"시각 무드: {info['visual_mood']}"
     )
 
 
 # ──────────────────────────────────────────
-# 구조 요약 텍스트 빌드
+# 헬퍼: 구조 메타 추출
 # ──────────────────────────────────────────
 
-def build_structure_summary(structure: dict) -> str:
-    lines = []
-    for key in SECTION_ORDER:
-        sec = structure.get(key, {})
-        cfg = SECTION_CONFIG.get(key, {})
-        label = cfg.get("label", key.upper())
-        tc = cfg.get("timecode", "")
-        info = sec.get("info_purpose", "")
-        emotion = sec.get("emotion_goal", "")
-        scene = sec.get("scene_type", "")
-        role = sec.get("protagonist_role", "")
-        if info or emotion:
-            line = f"[{tc}] {label}: 정보={info} / 감정={emotion}"
-            if scene:
-                line += f" / 장면={scene}"
-            if role:
-                line += f" / 주인공={role}"
-            lines.append(line)
+def get_section(structure: dict, key: str, field: str, default: str = "") -> str:
+    return str(structure.get(key, {}).get(field, default))
+
+
+def get_mini_hook(mini_hooks: list, timecode: str, field: str, default: str = "") -> str:
+    for mh in mini_hooks:
+        if mh.get("timecode") == timecode:
+            return str(mh.get(field, default))
+    return default
+
+
+def build_section_scene_types_str(structure: dict) -> str:
+    keys = ["hook", "teaser", "big_idea", "intro",
+            "body1", "body2", "body3", "body4", "reveal", "impact", "end"]
+    lines = [f"- {k.upper()}: {structure.get(k, {}).get('scene_type', '')}" for k in keys]
     return "\n".join(lines)
 
 
-# ──────────────────────────────────────────
-# Claude API: 전체 대본 작성
-# ──────────────────────────────────────────
-
-def call_claude_prompt4_full(
-    channel_name: str,
-    topic_title: str,
-    core_message: str,
-    target_emotion: str,
-    confirmed_title: str,
-    confirmed_thumbnail: str,
-    hook_30sec: str,
-    video_length: str,
-    structure: dict,
-    scene_meta: dict,
-) -> dict:
-    persona_block = build_persona_block(channel_name)
-    structure_summary = build_structure_summary(structure)
-    prompt4_instruction = scene_meta.get(
-        "prompt4_instruction",
-        "주인공이 해석하고 장면이 증명하는 구조. 각 2~4문장마다 시각 큐 삽입."
+def build_protagonist_roles_str(scene_meta: dict) -> str:
+    roles = scene_meta.get("protagonist_roles", {})
+    return (
+        f"직접 설명: {roles.get('direct_explain_sections', '')}\n"
+        f"관찰자: {roles.get('observer_sections', '')}\n"
+        f"추적자: {roles.get('tracker_sections', '')}\n"
+        f"미등장 가능: {roles.get('absent_sections', '')}"
     )
 
-    system_prompt = PROMPT_4_SYSTEM.format(
+
+def build_supporting_cast_str(scene_meta: dict) -> str:
+    cast = scene_meta.get("supporting_cast", [])
+    lines = [f"- {c.get('name','')}: {c.get('role','')} ({c.get('emotion','')})" for c in cast]
+    return "\n".join(lines) if lines else "없음"
+
+
+def build_key_objects_str(scene_meta: dict) -> str:
+    objs = scene_meta.get("key_visual_objects", [])
+    return ", ".join(objs) if objs else "없음"
+
+
+# ──────────────────────────────────────────
+# 시스템 프롬프트 빌드
+# ──────────────────────────────────────────
+
+def build_system_prompt(
+    channel_name, topic_title, core_message, target_emotion,
+    confirmed_title, confirmed_thumbnail, hook_30sec, video_length,
+    structure, scene_meta, mini_hooks, promise
+) -> str:
+    persona_block = build_persona_block(channel_name)
+    section_types_str = build_section_scene_types_str(structure)
+    protagonist_str = build_protagonist_roles_str(scene_meta)
+    supporting_str = build_supporting_cast_str(scene_meta)
+    key_objects_str = build_key_objects_str(scene_meta)
+
+    hook_design = st.session_state.get(P3_RESULT, {}).get("hook_design", {})
+    p1 = hook_design.get("phase1_0_20sec", {})
+
+    return PROMPT_4_SYSTEM_BASE.format(
         persona_block=persona_block,
         channel_name=channel_name,
         topic_title=topic_title,
@@ -178,272 +122,223 @@ def call_claude_prompt4_full(
         confirmed_thumbnail=confirmed_thumbnail,
         hook_30sec=hook_30sec,
         video_length=video_length,
-        structure_summary=structure_summary,
-        prompt4_instruction=prompt4_instruction,
+        core_promise=promise.get("core_promise", ""),
+        scene_recovery=promise.get("scene_recovery", ""),
+        explain_recovery=promise.get("explain_recovery", ""),
+        phase1_scene=p1.get("core_scene", ""),
+        phase1_sentence=p1.get("core_sentence", ""),
+        section_scene_types=section_types_str,
+        protagonist_roles=protagonist_str,
+        supporting_cast=supporting_str,
+        key_visual_objects=key_objects_str,
+        consequence_sections=scene_meta.get("consequence_sections", ""),
+        crowd_reaction_sections=scene_meta.get("crowd_reaction_sections", ""),
+        evidence_sections=scene_meta.get("evidence_sections", ""),
+        prompt4_instruction=scene_meta.get("prompt4_instruction", ""),
     )
 
-    user_message = (
-        f"채널: {channel_name} / 주제: {topic_title}\n"
-        f"제목: {confirmed_title}\n"
-        f"영상 길이: {video_length}\n\n"
-        "위 구조대로 전체 대본을 작성하고 JSON만 반환하라.\n"
-        "응답은 반드시 { 로 시작하고 } 로 끝나야 한다."
+
+def build_front_user_msg(structure: dict, mini_hooks: list) -> str:
+    return PROMPT_4_FRONT_SUFFIX.format(
+        body1_topic=get_section(structure, "body1", "core_topic"),
+        body1_scene_type=get_section(structure, "body1", "scene_type"),
+        body1_supporting=get_section(structure, "body1", "supporting_characters"),
+        body1_key_objects=get_section(structure, "body1", "key_objects"),
+        body1_consequence=get_section(structure, "body1", "consequence"),
+        mini_hook1_tc=get_mini_hook(mini_hooks, "07:00", "timecode", "07:00"),
+        mini_hook1_sentence=get_mini_hook(mini_hooks, "07:00", "sentence"),
+        body2_topic=get_section(structure, "body2", "core_topic"),
+        body2_scene_type=get_section(structure, "body2", "scene_type"),
+        body2_supporting=get_section(structure, "body2", "supporting_characters"),
+        body2_key_objects=get_section(structure, "body2", "key_objects"),
+        body2_consequence=get_section(structure, "body2", "consequence"),
+        mini_hook2_tc=get_mini_hook(mini_hooks, "10:15", "timecode", "10:15"),
+        mini_hook2_sentence=get_mini_hook(mini_hooks, "10:15", "sentence"),
     )
 
-    MAX_ATTEMPTS = 3
-    last_raw = ""
-    last_error = None
+
+def build_back_user_msg(structure: dict, mini_hooks: list) -> str:
+    return PROMPT_4_BACK_SUFFIX.format(
+        body3_topic=get_section(structure, "body3", "core_topic"),
+        body3_scene_type=get_section(structure, "body3", "scene_type"),
+        body3_supporting=get_section(structure, "body3", "supporting_characters"),
+        body3_key_objects=get_section(structure, "body3", "key_objects"),
+        body3_consequence=get_section(structure, "body3", "consequence"),
+        mini_hook3_tc=get_mini_hook(mini_hooks, "13:30", "timecode", "13:30"),
+        mini_hook3_sentence=get_mini_hook(mini_hooks, "13:30", "sentence"),
+        body4_topic=get_section(structure, "body4", "core_topic"),
+        body4_scene_type=get_section(structure, "body4", "scene_type"),
+        body4_supporting=get_section(structure, "body4", "supporting_characters"),
+        body4_key_objects=get_section(structure, "body4", "key_objects"),
+        body4_consequence=get_section(structure, "body4", "consequence"),
+        mini_hook4_tc=get_mini_hook(mini_hooks, "16:45", "timecode", "16:45"),
+        mini_hook4_sentence=get_mini_hook(mini_hooks, "16:45", "sentence"),
+        reveal_truth=get_section(structure, "reveal", "strongest_truth"),
+        reveal_emotion=get_section(structure, "reveal", "emotion_goal"),
+        reveal_scene_type=get_section(structure, "reveal", "scene_type"),
+        reveal_protagonist=get_section(structure, "reveal", "protagonist_role"),
+        impact_connection=get_section(structure, "impact", "life_connection"),
+        impact_emotion=get_section(structure, "impact", "emotion_goal"),
+        end_message=get_section(structure, "end", "final_message"),
+        end_action=get_section(structure, "end", "action_suggestion"),
+        end_emotion=get_section(structure, "end", "emotion_close"),
+        end_protagonist=get_section(structure, "end", "protagonist_role"),
+    )
+
+
+# ──────────────────────────────────────────
+# Claude API 호출: 스트리밍 텍스트
+# ──────────────────────────────────────────
+
+def call_claude_script(
+    system_prompt: str,
+    user_message: str,
+    max_tokens: int = 8000,
+    stream_container=None,
+) -> str:
+    """
+    스트리밍으로 대본을 수신한다.
+    stream_container가 주어지면 실시간으로 텍스트를 화면에 표시한다.
+    """
     client = _get_client()
+    full_text = ""
+    placeholder = stream_container.empty() if stream_container else None
 
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            response = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=16000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
-            )
-            last_raw = response.content[0].text
-            return _safe_loads(last_raw)
-
-        except json.JSONDecodeError as e:
-            last_error = e
-            if attempt < MAX_ATTEMPTS:
-                user_message = (
-                    f"이전 응답이 유효한 JSON이 아니었다.\n오류: {str(e)}\n"
-                    f"이전 응답 앞부분: {last_raw[:300]}\n\n"
-                    "규칙 재확인 후 올바른 JSON만 반환하라:\n"
-                    "1. 응답 첫 글자는 반드시 { 이어야 한다\n"
-                    "2. 마크다운 코드블록(```) 절대 사용 금지\n"
-                    "3. 설명 텍스트 절대 금지\n\n"
-                    f"주제: {topic_title} / JSON만 반환하라."
+    with client.messages.stream(
+        model="claude-sonnet-4-6",
+        max_tokens=max_tokens,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    ) as stream:
+        for text in stream.text_stream:
+            full_text += text
+            if placeholder:
+                placeholder.markdown(
+                    f"<div style='font-size:13px; color:#555; "
+                    f"background:#f8f9fa; padding:10px; border-radius:6px; "
+                    f"max-height:200px; overflow:auto;'>{full_text[-800:]}</div>",
+                    unsafe_allow_html=True,
                 )
-        except Exception as e:
-            raise RuntimeError(f"API 호출 오류: {str(e)}")
 
-    raise ValueError(
-        f"Claude API가 {MAX_ATTEMPTS}회 시도 후에도 유효한 JSON을 반환하지 못했습니다.\n"
-        f"마지막 오류: {str(last_error)}"
-    )
+    if placeholder:
+        placeholder.empty()
+    return full_text
 
 
 # ──────────────────────────────────────────
-# Claude API: 섹션 개별 재작성
+# 시각화 연동 메모 분리
 # ──────────────────────────────────────────
 
-def call_claude_prompt4_section(
-    section_key: str,
-    channel_name: str,
-    topic_title: str,
-    core_message: str,
-    target_emotion: str,
-    confirmed_title: str,
-    structure: dict,
-    scene_meta: dict,
-) -> dict:
-    persona_block = build_persona_block(channel_name)
-    sec = structure.get(section_key, {})
-    cfg = SECTION_CONFIG.get(section_key, {})
-    prompt4_instruction = scene_meta.get(
-        "prompt4_instruction",
-        "주인공이 해석하고 장면이 증명하는 구조."
-    )
-
-    system_prompt = PROMPT_4_SECTION_SYSTEM.format(
-        persona_block=persona_block,
-        channel_name=channel_name,
-        topic_title=topic_title,
-        core_message=core_message,
-        target_emotion=target_emotion,
-        confirmed_title=confirmed_title,
-        section_label=cfg.get("label", section_key.upper()),
-        timecode=cfg.get("timecode", ""),
-        word_count_target=cfg.get("target_words", 500),
-        info_purpose=sec.get("info_purpose", ""),
-        emotion_goal=sec.get("emotion_goal", ""),
-        scene_type=sec.get("scene_type", ""),
-        protagonist_role=sec.get("protagonist_role", ""),
-        supporting_characters=sec.get("supporting_characters", ""),
-        key_objects=sec.get("key_objects", ""),
-        special_instruction=SECTION_SPECIAL.get(section_key, ""),
-        section_key=section_key,
-    )
-
-    user_message = (
-        f"[{cfg.get('timecode','')}] {cfg.get('label', section_key.upper())} 섹션 대본을 작성하고 JSON만 반환하라.\n"
-        "응답은 반드시 { 로 시작하고 } 로 끝나야 한다."
-    )
-
-    MAX_ATTEMPTS = 3
-    last_raw = ""
-    last_error = None
-    client = _get_client()
-
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            response = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=4000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
-            )
-            last_raw = response.content[0].text
-            return _safe_loads(last_raw)
-
-        except json.JSONDecodeError as e:
-            last_error = e
-            if attempt < MAX_ATTEMPTS:
-                user_message = (
-                    f"이전 응답이 유효한 JSON이 아니었다.\n오류: {str(e)}\n"
-                    "규칙 재확인 후 올바른 JSON만 반환하라: "
-                    "응답 첫 글자 {{ / 코드블록 금지 / JSON만 반환."
-                )
-        except Exception as e:
-            raise RuntimeError(f"API 호출 오류: {str(e)}")
-
-    raise ValueError(f"섹션 작성 실패 ({section_key}): {str(last_error)}")
+def split_script_and_memo(back_text: str) -> tuple:
+    separator = "## [시각화 연동 메모]"
+    if separator in back_text:
+        parts = back_text.split(separator, 1)
+        return parts[0].strip(), (separator + parts[1]).strip()
+    return back_text.strip(), ""
 
 
 # ──────────────────────────────────────────
-# 대본 텍스트 렌더링 (색상 태그 하이라이트)
+# 섹션별 대본 파싱
 # ──────────────────────────────────────────
 
-def render_script_text(text: str, section_color: str):
-    """대본 텍스트를 시각 큐 하이라이트와 함께 표시한다."""
-    # [SCENE:...], [CUT:...], [B-ROLL:...], [TEXT:...], [MINI-HOOK] 하이라이트
-    def highlight(m):
-        tag = m.group(1)
-        content = m.group(2).strip() if m.group(2) else ""
-        tag_colors = {
-            "SCENE": "#e3f2fd", "CUT": "#f3e5f5", "B-ROLL": "#e8f5e9",
-            "TEXT": "#fff8e1", "MINI-HOOK": "#fce4ec",
-        }
-        bg = tag_colors.get(tag, "#f5f5f5")
-        if content:
-            return (
-                f'<span style="background:{bg}; color:#333; border-radius:4px;'
-                f' padding:1px 6px; font-size:11px; font-weight:600;">'
-                f'[{tag}: {content}]</span>'
-            )
-        return (
-            f'<span style="background:{bg}; color:#333; border-radius:4px;'
-            f' padding:1px 6px; font-size:12px; font-weight:700;">'
-            f'[{tag}]</span>'
+SECTION_ORDER = [
+    ("hook",     "[00:00]", "🔥 HOOK",      "#E53935", 200),
+    ("teaser",   "[01:00]", "📺 TEASER",    "#FB8C00", 200),
+    ("big_idea", "[02:00]", "💡 BIG IDEA",  "#F9A825", 200),
+    ("intro",    "[03:00]", "🎬 INTRO",     "#43A047", 200),
+    ("body1",    "[04:00]", "📦 BODY 1",    "#00897B", 400),
+    ("body2",    "[07:00]", "📦 BODY 2",    "#039BE5", 400),
+    ("body3",    "[10:15]", "📦 BODY 3",    "#1E88E5", 400),
+    ("body4",    "[13:30]", "📦 BODY 4",    "#5E35B1", 400),
+    ("reveal",   "[17:00]", "💥 REVEAL",    "#8E24AA", 300),
+    ("impact",   "[18:30]", "⚡ IMPACT",    "#D81B60", 150),
+    ("end",      "[19:00]", "🎯 END",       "#546E7A", 200),
+]
+
+
+def parse_script_by_sections(full_script: str) -> dict:
+    positions = []
+    for key, header, *_ in SECTION_ORDER:
+        idx = full_script.find(header)
+        if idx != -1:
+            positions.append((idx, key))
+
+    positions.sort(key=lambda x: x[0])
+
+    sections = {}
+    for i, (pos, key) in enumerate(positions):
+        end = positions[i + 1][0] if i + 1 < len(positions) else len(full_script)
+        sections[key] = full_script[pos:end].strip()
+
+    return sections
+
+
+# ──────────────────────────────────────────
+# 섹션별 편집 UI
+# ──────────────────────────────────────────
+
+def render_script_editor(full_script: str) -> str:
+    parsed = parse_script_by_sections(full_script)
+    edited_parts = []
+
+    for key, header, emoji_label, color, height in SECTION_ORDER:
+        content = parsed.get(key, "")
+
+        st.markdown(
+            f"""
+            <div style="
+                border-left: 5px solid {color};
+                padding: 6px 14px;
+                margin: 16px 0 4px 0;
+                background: #fafafa;
+                border-radius: 0 6px 6px 0;
+            ">
+                <span style="font-size:15px; font-weight:700; color:{color};">
+                    {emoji_label}
+                </span>
+                <span style="font-size:12px; color:#888; margin-left:8px;">
+                    {header}
+                </span>
+                <span style="font-size:11px; color:#aaa; margin-left:6px;">
+                    ({len(content)}자)
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    # 시각 큐 처리
-    display = re.sub(
-        r'\[(SCENE|CUT|B-ROLL|TEXT|MINI-HOOK)(?::\s*)?(.*?)\]',
-        highlight,
-        text,
-        flags=re.IGNORECASE
-    )
-    # 줄바꿈을 <br>로 변환
-    display = display.replace("\n", "<br>")
+        edited = st.text_area(
+            label=emoji_label,
+            value=content,
+            height=height,
+            key=f"script_edit_{key}",
+            label_visibility="collapsed",
+        )
+        edited_parts.append(edited)
 
-    st.markdown(
-        f"""
-        <div style="
-            border-left: 4px solid {section_color};
-            background: #fafafa;
-            border-radius: 6px;
-            padding: 14px 16px;
-            font-size: 14px;
-            line-height: 1.8;
-            color: #1a1a1a;
-            white-space: pre-wrap;
-        ">{display}</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    return "\n\n".join(edited_parts)
 
 
 # ──────────────────────────────────────────
-# Excel 내보내기
+# 다운로드 파일 생성
 # ──────────────────────────────────────────
 
-def _header_style(cell, bg="4A90E2"):
-    cell.font = Font(bold=True, color="FFFFFF", size=11)
-    cell.fill = PatternFill("solid", fgColor=bg)
-    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    thin = Side(style="thin", color="CCCCCC")
-    cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
-
-
-def _data_style(cell, bg="FFFFFF"):
-    cell.alignment = Alignment(vertical="top", wrap_text=True)
-    thin = Side(style="thin", color="DDDDDD")
-    cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    cell.fill = PatternFill("solid", fgColor=bg)
-
-
-def export_p4_excel(script: dict, topic_title: str, channel_name: str) -> bytes:
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "✍️ 대본"
-
-    # 헤더 정보
-    for i, (k, v) in enumerate([("채널명", channel_name), ("주제", topic_title),
-                                  ("작성 일시", datetime.now().strftime("%Y-%m-%d %H:%M"))], 1):
-        ws.cell(i, 1, k).font = Font(bold=True)
-        ws.cell(i, 2, v)
-    ws.append([])
-
-    headers = ["타임코드", "섹션", "목표 글자수", "실제 글자수", "대본 내용"]
-    row_start = 5
-    ws.append(headers)
-    for col_idx, _ in enumerate(headers, 1):
-        _header_style(ws.cell(row_start, col_idx))
-    ws.row_dimensions[row_start].height = 30
-
-    total_words = 0
-    for idx, key in enumerate(SECTION_ORDER):
-        sec = script.get(key, {})
-        cfg = SECTION_CONFIG.get(key, {})
-        text = sec.get("text", "")
-        wc = sec.get("word_count", len(text))
-        total_words += wc
-        bg = "F8F9FA" if idx % 2 == 0 else "FFFFFF"
-        row = [
-            cfg.get("timecode", ""),
-            cfg.get("label", key.upper()),
-            cfg.get("target_words", 0),
-            wc,
-            text,
-        ]
-        ws.append(row)
-        for col_idx, _ in enumerate(row, 1):
-            _data_style(ws.cell(ws.max_row, col_idx), bg)
-        ws.row_dimensions[ws.max_row].height = max(60, min(len(text) // 3, 200))
-
-    # 합계 행
-    ws.append(["", "합계", "", total_words, ""])
-    for col_idx in range(1, 6):
-        ws.cell(ws.max_row, col_idx).font = Font(bold=True)
-        ws.cell(ws.max_row, col_idx).fill = PatternFill("solid", fgColor="E8F0FE")
-
-    for i, w in enumerate([12, 14, 14, 14, 80], 1):
-        ws.column_dimensions[get_column_letter(i)].width = w
-
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
-
-
-def export_p4_txt(script: dict, topic_title: str) -> bytes:
-    lines = [f"# {topic_title}", f"작성 일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}", "=" * 60, ""]
-    for key in SECTION_ORDER:
-        sec = script.get(key, {})
-        cfg = SECTION_CONFIG.get(key, {})
-        label = cfg.get("label", key.upper())
-        tc = cfg.get("timecode", "")
-        text = sec.get("text", "")
-        wc = sec.get("word_count", len(text))
-        lines.append(f"[{tc}] {label}  ({wc}자)")
-        lines.append("-" * 40)
-        lines.append(text)
-        lines.append("")
-    return "\n".join(lines).encode("utf-8")
+def build_script_txt(
+    channel_name: str,
+    title: str,
+    script: str,
+    memo: str,
+) -> bytes:
+    content = (
+        f"채널: {channel_name}\n"
+        f"확정 제목: {title}\n"
+        f"생성일시: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+        f"{'━' * 40}\n\n"
+        f"{script}\n\n"
+        f"{'━' * 40}\n"
+        f"{memo}\n"
+    )
+    return content.encode("utf-8")
 
 
 # ──────────────────────────────────────────
@@ -453,292 +348,283 @@ def export_p4_txt(script: dict, topic_title: str) -> bytes:
 def render_script_tab():
     render_pipeline_status()
 
-    st.header("✍️ 대본 작성", divider="gray")
-    st.caption("대본 구조 설계를 바탕으로 실제 촬영·편집에 사용할 완성 대본을 작성합니다.")
-
-    # ── 이전 단계 카드 ───────────────────────────────────────────────────────
-    ok1 = render_p1_confirmed_card(editable=False)
-    if not ok1:
-        return
-
-    ok2 = render_p2_confirmed_card(editable=False)
-    if not ok2:
-        return
-
-    # P3 구조 확인
-    structure = st.session_state.get(P3_STRUCTURE)
-    if not structure:
-        st.warning("⚠️ 프롬프트 3(대본 구조 설계)를 먼저 완료해주세요.")
-        return
-
-    with st.expander("📌 3단계 구조 요약 확인", expanded=False):
-        scene_meta = st.session_state.get(P3_SCENE_META, {})
-        video_length = st.session_state.get(P3_VIDEO_LENGTH, "20분 내외")
-        st.markdown(f"**영상 길이:** {video_length}")
-        for key in SECTION_ORDER:
-            sec = structure.get(key, {})
-            cfg = SECTION_CONFIG.get(key, {})
-            info = sec.get("info_purpose", "")
-            if info:
-                st.caption(f"[{cfg.get('timecode','')}] **{cfg.get('label','')}**: {info}")
-
-    st.divider()
-
-    # ── 작성 모드 선택 ────────────────────────────────────────────────────────
-    col_mode, col_btn = st.columns([3, 1])
-    with col_mode:
-        write_mode = st.radio(
-            "작성 방식",
-            options=["전체 대본 한번에", "섹션 선택 작성"],
-            horizontal=True,
-            key="p4_write_mode",
-        )
-
-    selected_sections = SECTION_ORDER
-    if write_mode == "섹션 선택 작성":
-        section_options = {
-            f"[{SECTION_CONFIG[k]['timecode']}] {SECTION_CONFIG[k]['label']}": k
-            for k in SECTION_ORDER
-        }
-        chosen_labels = st.multiselect(
-            "작성할 섹션 선택",
-            options=list(section_options.keys()),
-            default=list(section_options.keys()),
-            key="p4_section_select",
-        )
-        selected_sections = [section_options[l] for l in chosen_labels]
-
-    run_btn = st.button(
-        "✍️ 대본 작성 시작" if write_mode == "전체 대본 한번에" else "✍️ 선택 섹션 작성",
-        key="p4_run_btn",
-        type="primary",
-        use_container_width=True,
+    st.header("📝 대본 작성", divider="gray")
+    st.caption(
+        "프롬프트 4 — 채널 페르소나 10,000자 롱폼 대본 작성기  \n"
+        "확정된 구조 설계를 바탕으로 장면이 살아 있는 최종 대본을 완성합니다."
     )
 
-    # ── API 호출 ───────────────────────────────────────────────────────────────
-    channel_name = st.session_state.get(P1_CHANNEL, "")
-    topic_title = st.session_state.get(P1_TOPIC_TITLE, "")
-    core_message = st.session_state.get(P1_CORE_MESSAGE, "")
-    target_emotion = st.session_state.get(P1_EMOTION, "")
-    confirmed_title = st.session_state.get(P2_TITLE, "")
+    # ── 이전 단계 확정 카드 ───────────────────────────────────────────────────
+    if not render_p1_confirmed_card(editable=False):
+        return
+    if not render_p2_confirmed_card(editable=False):
+        return
+    if not render_p3_confirmed_card(editable=False):
+        return
+
+    # ── 확정값 읽기 ───────────────────────────────────────────────────────────
+    channel_name        = st.session_state.get(P1_CHANNEL, "")
+    topic_title         = st.session_state.get(P1_TOPIC_TITLE, "")
+    core_message        = st.session_state.get(P1_CORE_MESSAGE, "")
+    target_emotion      = st.session_state.get(P1_EMOTION, "")
+    confirmed_title     = st.session_state.get(P2_TITLE, "")
     confirmed_thumbnail = st.session_state.get(P2_THUMBNAIL, "")
-    hook_30sec = st.session_state.get(P2_HOOK_30SEC, "")
-    video_length = st.session_state.get(P3_VIDEO_LENGTH, "20분 내외")
-    scene_meta = st.session_state.get(P3_SCENE_META, {})
+    hook_30sec          = st.session_state.get(P2_HOOK_30SEC, "")
+    video_length        = st.session_state.get(P3_VIDEO_LENGTH, "20분 내외 (10,000자)")
+    structure           = st.session_state.get(P3_STRUCTURE, {})
+    scene_meta          = st.session_state.get(P3_SCENE_META, {})
+    mini_hooks          = st.session_state.get(P3_MINI_HOOKS, [])
+    p3_result           = st.session_state.get(P3_RESULT, {})
+    promise             = p3_result.get("thumbnail_promise", {})
 
-    if run_btn:
-        if write_mode == "전체 대본 한번에":
-            with st.spinner("Claude AI가 전체 대본을 작성 중입니다... (30-60초 소요)"):
-                try:
-                    result = call_claude_prompt4_full(
-                        channel_name=channel_name,
-                        topic_title=topic_title,
-                        core_message=core_message,
-                        target_emotion=target_emotion,
-                        confirmed_title=confirmed_title,
-                        confirmed_thumbnail=confirmed_thumbnail,
-                        hook_30sec=hook_30sec,
-                        video_length=video_length,
-                        structure=structure,
-                        scene_meta=scene_meta,
-                    )
-                    script = result.get("script", {})
-                    # 기존 스크립트와 병합 (새로 작성된 섹션만 업데이트)
-                    existing = st.session_state.get(P4_SCRIPT, {})
-                    existing.update(script)
-                    st.session_state[P4_RESULT] = result
-                    st.session_state[P4_SCRIPT] = existing
-                    st.session_state[P4_TOTAL_WORDS] = result.get("total_word_count", 0)
-                    st.session_state[P4_WRITING_NOTES] = result.get("writing_notes", "")
-                    st.success("전체 대본 작성 완료!")
-                except ValueError as e:
-                    st.error(f"대본 작성 오류: {e}")
-                except RuntimeError as e:
-                    st.error(f"API 오류: {e}")
-                except Exception as e:
-                    st.error(f"오류 발생: {e}")
-        else:
-            # 섹션별 작성
-            existing = st.session_state.get(P4_SCRIPT, {})
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            failed = []
-            for i, key in enumerate(selected_sections):
-                cfg = SECTION_CONFIG.get(key, {})
-                status_text.text(f"[{cfg.get('timecode','')}] {cfg.get('label','')} 작성 중...")
-                try:
-                    result = call_claude_prompt4_section(
-                        section_key=key,
-                        channel_name=channel_name,
-                        topic_title=topic_title,
-                        core_message=core_message,
-                        target_emotion=target_emotion,
-                        confirmed_title=confirmed_title,
-                        structure=structure,
-                        scene_meta=scene_meta,
-                    )
-                    existing[key] = result
-                except Exception as e:
-                    failed.append(f"{cfg.get('label', key)}: {e}")
-                progress_bar.progress((i + 1) / len(selected_sections))
+    can_run = bool(channel_name and topic_title and confirmed_title
+                   and confirmed_thumbnail and structure)
 
-            st.session_state[P4_SCRIPT] = existing
-            st.session_state[P4_RESULT] = {"script": existing}
-            total = sum(s.get("word_count", 0) for s in existing.values())
-            st.session_state[P4_TOTAL_WORDS] = total
-            status_text.empty()
-            progress_bar.empty()
-            if failed:
-                st.warning(f"일부 섹션 실패: {', '.join(failed)}")
-            else:
-                st.success(f"선택 섹션 대본 작성 완료! (총 {len(selected_sections)}개)")
-
-    script = st.session_state.get(P4_SCRIPT, {})
-    if not script:
-        st.info("'대본 작성 시작' 버튼을 눌러 대본을 생성하세요.", icon="✍️")
+    if not can_run:
+        st.warning("⚠️ 1~3단계를 모두 완료해야 대본 작성을 진행할 수 있습니다.")
         return
 
-    # ── 통계 메트릭 ────────────────────────────────────────────────────────────
-    st.subheader("📊 대본 통계")
-    total_words = sum(s.get("word_count", len(s.get("text", ""))) for s in script.values() if isinstance(s, dict))
-    completed = sum(1 for k in SECTION_ORDER if script.get(k, {}).get("text", ""))
-    avg_words = total_words // max(completed, 1)
-
-    metric_cols = st.columns(4)
-    metric_cols[0].metric("✍️ 완성 섹션", f"{completed} / {len(SECTION_ORDER)}")
-    metric_cols[1].metric("📝 총 글자수", f"{total_words:,}자")
-    metric_cols[2].metric("📏 평균 섹션 글자수", f"{avg_words:,}자")
-    writing_notes = st.session_state.get(P4_WRITING_NOTES, "")
-    if writing_notes:
-        metric_cols[3].metric("📋 작성 노트", "확인 ▼")
-
-    if writing_notes:
-        with st.expander("📋 작성 노트 보기", expanded=False):
-            st.write(writing_notes)
-
     st.divider()
 
-    # ── 대본 표시 모드 ─────────────────────────────────────────────────────────
-    view_mode = st.radio(
-        "보기 모드",
-        options=["섹션별 카드", "전체 대본 연속"],
-        horizontal=True,
-        key="p4_view_mode",
-    )
+    # ── 추가 요구사항 ─────────────────────────────────────────────────────────
+    with st.expander("⚙️ 추가 요구사항 (선택)", expanded=False):
+        extra_note = st.text_area(
+            "대본 작성 시 추가로 고려할 사항",
+            placeholder=(
+                "예) BODY 1에서 구체적 수치 강조 / "
+                "BODY 3 대조 인물을 30대 직장인으로 / "
+                "전체적으로 더 공격적인 톤으로"
+            ),
+            height=80,
+            key="p4_extra",
+        )
 
-    if view_mode == "섹션별 카드":
-        for key in SECTION_ORDER:
-            sec = script.get(key, {})
-            if not isinstance(sec, dict):
-                continue
-            text = sec.get("text", "")
-            cfg = SECTION_CONFIG.get(key, {})
-            label = cfg.get("label", key.upper())
-            timecode = cfg.get("timecode", "")
-            color = cfg.get("color", "#888")
-            target = cfg.get("target_words", 0)
-            wc = sec.get("word_count", len(text))
+    # ── 앞/뒤 분할 생성 버튼 ─────────────────────────────────────────────────
+    front_done = bool(st.session_state.get(P4_SCRIPT_FRONT))
+    col_front, col_back = st.columns(2)
 
-            # 섹션 헤더
-            col_hdr, col_meta, col_rewrite = st.columns([3, 2, 1])
-            with col_hdr:
-                st.markdown(
-                    f'<span style="color:{color}; font-size:16px; font-weight:700;">'
-                    f'[{timecode}] {label}</span>',
-                    unsafe_allow_html=True,
-                )
-            with col_meta:
-                diff = wc - target
-                diff_str = f"+{diff}" if diff >= 0 else str(diff)
-                color_diff = "#4CAF50" if abs(diff) <= 100 else "#F44336"
-                st.markdown(
-                    f'<span style="font-size:12px; color:#888;">{wc}자 / 목표 {target}자 </span>'
-                    f'<span style="font-size:12px; color:{color_diff};">({diff_str})</span>',
-                    unsafe_allow_html=True,
-                )
-            with col_rewrite:
-                if st.button("🔄 재작성", key=f"rewrite_{key}", help=f"{label} 섹션 재작성"):
-                    with st.spinner(f"{label} 재작성 중..."):
-                        try:
-                            result = call_claude_prompt4_section(
-                                section_key=key,
-                                channel_name=channel_name,
-                                topic_title=topic_title,
-                                core_message=core_message,
-                                target_emotion=target_emotion,
-                                confirmed_title=confirmed_title,
-                                structure=structure,
-                                scene_meta=scene_meta,
-                            )
-                            script[key] = result
-                            st.session_state[P4_SCRIPT] = script
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"재작성 실패: {e}")
+    with col_front:
+        front_btn = st.button(
+            "✍️ 앞부분 생성 (HOOK~BODY 2)",
+            type="primary",
+            use_container_width=True,
+            help="HOOK, TEASER, BIG IDEA, INTRO, BODY1, BODY2 — 약 5,000자",
+        )
 
-            if text:
-                render_script_text(text, color)
-            else:
-                st.info(f"{label} 섹션이 아직 작성되지 않았습니다.")
+    with col_back:
+        back_btn = st.button(
+            "✍️ 뒷부분 생성 (BODY 3~END)",
+            type="primary" if front_done else "secondary",
+            use_container_width=True,
+            disabled=not front_done,
+            help="앞부분 생성 후 활성화 — BODY3, BODY4, REVEAL, IMPACT, END + 시각화 메모",
+        )
 
-            st.markdown("---")
+    # ── 앞부분 생성 ───────────────────────────────────────────────────────────
+    if front_btn:
+        system_prompt = build_system_prompt(
+            channel_name, topic_title, core_message, target_emotion,
+            confirmed_title, confirmed_thumbnail, hook_30sec, video_length,
+            structure, scene_meta, mini_hooks, promise,
+        )
+        user_msg = build_front_user_msg(structure, mini_hooks)
+        extra = st.session_state.get("p4_extra", "")
+        if extra.strip():
+            user_msg += f"\n\n추가 요구사항: {extra}"
 
-    else:
-        # 전체 대본 연속 보기
-        full_lines = []
-        for key in SECTION_ORDER:
-            sec = script.get(key, {})
-            if not isinstance(sec, dict):
-                continue
-            text = sec.get("text", "")
-            cfg = SECTION_CONFIG.get(key, {})
-            if text:
-                full_lines.append(f"[{cfg.get('timecode','')}] {cfg.get('label','')} ({'─'*40})")
-                full_lines.append(text)
-                full_lines.append("")
-        if full_lines:
-            st.text_area(
-                "전체 대본",
-                value="\n".join(full_lines),
-                height=800,
-                key="p4_full_script_view",
-            )
-
-    # ── 내보내기 ────────────────────────────────────────────────────────────────
-    st.divider()
-    st.subheader("📥 내보내기")
-
-    export_cols = st.columns(2)
-    with export_cols[0]:
+        st.info("Claude AI가 앞부분 대본을 스트리밍으로 작성 중입니다 (HOOK~BODY 2, 약 30~60초)...")
+        stream_box = st.container()
         try:
-            excel_bytes = export_p4_excel(
-                script=script,
-                topic_title=topic_title,
-                channel_name=channel_name,
+            front_text = call_claude_script(
+                system_prompt, user_msg,
+                max_tokens=8000,
+                stream_container=stream_box,
             )
-            fname_xlsx = f"대본_{topic_title[:20]}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
-            st.download_button(
-                label="📊 Excel 다운로드",
-                data=excel_bytes,
-                file_name=fname_xlsx,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="p4_download_excel",
-                use_container_width=True,
-            )
+            st.session_state[P4_SCRIPT_FRONT] = front_text
+            st.session_state[P4_RESULT] = True
+            st.success(f"✅ 앞부분 생성 완료! ({len(front_text):,}자) 이제 뒷부분을 생성하세요.")
+            st.rerun()
         except Exception as e:
-            st.warning(f"Excel 생성 오류: {e}")
+            st.error(f"생성 중 오류: {e}")
 
-    with export_cols[1]:
+    # ── 뒷부분 생성 ───────────────────────────────────────────────────────────
+    if back_btn:
+        front_text = st.session_state.get(P4_SCRIPT_FRONT, "")
+        system_prompt = build_system_prompt(
+            channel_name, topic_title, core_message, target_emotion,
+            confirmed_title, confirmed_thumbnail, hook_30sec, video_length,
+            structure, scene_meta, mini_hooks, promise,
+        )
+        user_msg = (
+            f"앞부분 대본(참고용, 연속성 유지):\n---\n{front_text[-1200:]}\n---\n\n"
+            + build_back_user_msg(structure, mini_hooks)
+        )
+        extra = st.session_state.get("p4_extra", "")
+        if extra.strip():
+            user_msg += f"\n\n추가 요구사항: {extra}"
+
+        st.info("Claude AI가 뒷부분 대본을 스트리밍으로 작성 중입니다 (BODY 3~END + 시각화 메모, 약 30~60초)...")
+        stream_box = st.container()
         try:
-            txt_bytes = export_p4_txt(script=script, topic_title=topic_title)
-            fname_txt = f"대본_{topic_title[:20]}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
+            back_raw = call_claude_script(
+                system_prompt, user_msg,
+                max_tokens=8000,
+                stream_container=stream_box,
+            )
+            back_script, viz_memo = split_script_and_memo(back_raw)
+            full_script = front_text + "\n\n" + back_script
+
+            st.session_state[P4_SCRIPT_BACK]  = back_script
+            st.session_state[P4_VIZ_MEMO]     = viz_memo
+            st.session_state[P4_SCRIPT_FULL]  = full_script
+            st.success(f"✅ 뒷부분 생성 완료! 전체 대본 {len(full_script):,}자 완성.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"생성 중 오류: {e}")
+
+    # ── 결과 표시 ─────────────────────────────────────────────────────────────
+    front_text  = st.session_state.get(P4_SCRIPT_FRONT, "")
+    full_script = st.session_state.get(P4_SCRIPT_FULL, "")
+    viz_memo    = st.session_state.get(P4_VIZ_MEMO, "")
+
+    if not front_text:
+        st.info("위 버튼을 눌러 대본을 생성하세요. 앞부분 → 뒷부분 순서로 생성합니다.")
+        return
+
+    st.divider()
+
+    # 탭: 전체 보기 / 섹션별 편집 / 시각화 메모
+    tab_view, tab_edit, tab_memo = st.tabs([
+        "📄 전체 대본 보기",
+        "✏️ 섹션별 편집",
+        "🎨 시각화 연동 메모 (프롬프트 5용)",
+    ])
+
+    # ── 전체 보기 ─────────────────────────────────────────────────────────────
+    with tab_view:
+        display_script = full_script if full_script else front_text
+
+        char_count = len(display_script)
+        est_min = round(char_count / 500)
+        target_chars = 10000
+        pct = min(100, int(char_count / target_chars * 100))
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("총 글자 수", f"{char_count:,}자")
+        c2.metric("예상 러닝타임", f"약 {est_min}분")
+        c3.metric("목표 대비", f"{pct}%")
+        c4.metric("확정 상태",
+                  "✅ 확정" if st.session_state.get(P4_CONFIRMED) else "⚠️ 미확정")
+
+        if not full_script:
+            st.warning("앞부분만 생성되었습니다. '뒷부분 생성' 버튼을 눌러 완성하세요.")
+
+        st.text_area(
+            "전체 대본 (편집은 '섹션별 편집' 탭 사용)",
+            value=display_script,
+            height=600,
+            disabled=True,
+            key="p4_full_view",
+        )
+
+    # ── 섹션별 편집 ───────────────────────────────────────────────────────────
+    with tab_edit:
+        if not full_script:
+            st.info("전체 대본이 완성된 후 섹션별 편집이 가능합니다.")
+        else:
+            st.caption("각 섹션을 직접 편집한 후 '전체 대본 확정 저장' 버튼을 누르세요.")
+            edited_full = render_script_editor(full_script)
+
+            st.markdown("&nbsp;", unsafe_allow_html=True)
+            if st.button(
+                "✅ 전체 대본 확정 저장",
+                type="primary",
+                use_container_width=True,
+                key="p4_confirm_save",
+            ):
+                st.session_state[P4_SCRIPT_FULL] = edited_full
+                st.session_state[P4_CONFIRMED] = True
+                st.success("✅ 대본이 확정되었습니다! '📦 업로드 패키지' 탭으로 이동하세요.")
+                st.rerun()
+
+    # ── 시각화 연동 메모 ──────────────────────────────────────────────────────
+    with tab_memo:
+        if not viz_memo:
+            st.info("뒷부분 대본 생성이 완료되면 시각화 연동 메모가 자동으로 생성됩니다.")
+        else:
+            st.subheader("🎨 시각화 연동 메모 (프롬프트 5용)")
+            st.caption(
+                "이 메모는 프롬프트 5(스틱맨 시각화 프롬프트 생성기)에 함께 입력하면 "
+                "DATA_SKETCH_SCENE 자동 감지 정확도가 높아집니다."
+            )
+            edited_memo = st.text_area(
+                "시각화 연동 메모",
+                value=viz_memo,
+                height=500,
+                key="viz_memo_edit",
+            )
+            if st.button("💾 메모 저장", key="save_viz_memo"):
+                st.session_state[P4_VIZ_MEMO] = edited_memo
+                st.success("시각화 메모가 저장되었습니다!")
+
+    # ── 부분 재생성 ───────────────────────────────────────────────────────────
+    st.divider()
+    st.subheader("🔄 부분 재생성")
+    regen_col1, regen_col2 = st.columns(2)
+
+    with regen_col1:
+        if st.button("🔄 앞부분만 재생성", use_container_width=True, key="regen_front"):
+            for key in [P4_SCRIPT_FRONT, P4_SCRIPT_FULL, P4_CONFIRMED]:
+                st.session_state[key] = "" if key != P4_CONFIRMED else False
+            st.info("앞부분이 초기화되었습니다. 위 '앞부분 생성' 버튼을 다시 누르세요.")
+            st.rerun()
+
+    with regen_col2:
+        if st.button("🔄 뒷부분만 재생성", use_container_width=True, key="regen_back"):
+            for key in [P4_SCRIPT_BACK, P4_SCRIPT_FULL, P4_VIZ_MEMO]:
+                st.session_state[key] = ""
+            st.session_state[P4_CONFIRMED] = False
+            st.info("뒷부분이 초기화되었습니다. 위 '뒷부분 생성' 버튼을 다시 누르세요.")
+            st.rerun()
+
+    # ── 내보내기 ──────────────────────────────────────────────────────────────
+    st.divider()
+    st.subheader("📥 다운로드")
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    export_script = full_script or front_text
+
+    dc1, dc2 = st.columns(2)
+    with dc1:
+        txt_bytes = build_script_txt(
+            channel_name, confirmed_title, export_script, viz_memo
+        )
+        st.download_button(
+            "📥 대본 전체 TXT",
+            data=txt_bytes,
+            file_name=f"대본_{channel_name}_{ts}.txt",
+            mime="text/plain; charset=utf-8",
+            use_container_width=True,
+        )
+    with dc2:
+        if viz_memo:
+            memo_bytes = viz_memo.encode("utf-8")
             st.download_button(
-                label="📄 TXT 다운로드",
-                data=txt_bytes,
-                file_name=fname_txt,
+                "📥 시각화 메모 TXT",
+                data=memo_bytes,
+                file_name=f"시각화메모_{channel_name}_{ts}.txt",
                 mime="text/plain; charset=utf-8",
-                key="p4_download_txt",
                 use_container_width=True,
             )
-        except Exception as e:
-            st.warning(f"TXT 생성 오류: {e}")
+
+    # ── 확정 안내 ─────────────────────────────────────────────────────────────
+    st.divider()
+    if st.session_state.get(P4_CONFIRMED):
+        st.success(
+            "✅ 대본 확정 완료!\n\n"
+            "👉 다음 단계 **'📦 업로드 패키지'** 탭으로 이동하세요."
+        )
+    elif full_script:
+        st.warning(
+            "⚠️ 대본을 검토한 후 '섹션별 편집' 탭에서 "
+            "'전체 대본 확정 저장' 버튼을 눌러 확정하세요."
+        )

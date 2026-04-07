@@ -30,10 +30,12 @@ P3_MINI_HOOKS     = "p3_mini_hooks"      # 미니훅 4개 리스트
 P3_SCENE_META     = "p3_scene_meta"      # 프롬프트 4·5 연동 메타
 
 # 프롬프트 4: 대본 작성 결과
-P4_RESULT        = "p4_result"
-P4_SCRIPT        = "p4_script"          # 섹션별 대본 dict
-P4_TOTAL_WORDS   = "p4_total_words"     # 전체 글자수
-P4_WRITING_NOTES = "p4_writing_notes"   # 작성 노트
+P4_RESULT         = "p4_result"
+P4_SCRIPT_FRONT   = "p4_script_front"   # HOOK~BODY2 대본 텍스트
+P4_SCRIPT_BACK    = "p4_script_back"    # BODY3~END 대본 텍스트
+P4_SCRIPT_FULL    = "p4_script_full"    # 전체 합본 대본 텍스트
+P4_VIZ_MEMO       = "p4_viz_memo"       # 시각화 연동 메모 (프롬프트 5용)
+P4_CONFIRMED      = "p4_confirmed"      # 최종 확정 여부 bool
 
 
 # ──────────────────────────────────────────
@@ -48,7 +50,7 @@ def render_pipeline_status():
     p1_done = bool(st.session_state.get(P1_TOPIC_TITLE))
     p2_done = bool(st.session_state.get(P2_TITLE))
     p3_done = bool(st.session_state.get(P3_RESULT))
-    p4_done = bool(st.session_state.get(P4_RESULT))
+    p4_done = bool(st.session_state.get(P4_SCRIPT_FULL))
 
     def step_badge(label, done, active=False):
         if done:
@@ -206,5 +208,97 @@ def render_p2_confirmed_card(editable=False):
             st.markdown(f"**썸네일 문구:** {thumbnail}")
             if hook_30:
                 st.info(f"🎬 초반 30초: {hook_30}")
+
+    return True
+
+# ──────────────────────────────────────────
+# P3 확정 카드
+# ──────────────────────────────────────────
+
+def render_p3_confirmed_card(editable=False):
+    """
+    프롬프트 3에서 확정된 대본 구조 요약을 카드로 표시한다.
+    """
+    structure = st.session_state.get(P3_STRUCTURE)
+    if not structure:
+        st.warning("⚠️ 프롬프트 3(대본 구조 설계)를 먼저 완료해주세요.")
+        return False
+
+    video_length = st.session_state.get(P3_VIDEO_LENGTH, "")
+    mini_hooks = st.session_state.get(P3_MINI_HOOKS, [])
+    scene_meta = st.session_state.get(P3_SCENE_META, {})
+    p4_instr = scene_meta.get("prompt4_instruction", "")
+
+    with st.expander("📌 3단계 확정 내용 — 대본 구조 설계", expanded=False):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown(f"**영상 길이:** {video_length}")
+            for key in ["hook", "body1", "body2", "body3", "body4", "reveal"]:
+                sec = structure.get(key, {})
+                info = sec.get("info_purpose", "")
+                scene = sec.get("scene_type", "")
+                if info:
+                    st.caption(f"• **{key.upper()}**: {info[:60]}")
+                    if scene:
+                        st.caption(f"  └ 장면: {scene[:50]}")
+        with col_b:
+            if mini_hooks:
+                st.markdown("**미니훅**")
+                for mh in mini_hooks:
+                    tc = mh.get("timecode", "")
+                    sent = mh.get("sentence", "")
+                    st.caption(f"🔥 [{tc}] {sent[:50]}")
+            if p4_instr:
+                st.markdown("**대본 작성 지시**")
+                st.caption(p4_instr[:100])
+
+    return True
+
+
+# ──────────────────────────────────────────
+# P4 확정 카드
+# ──────────────────────────────────────────
+
+def render_p4_confirmed_card(editable=False):
+    """
+    프롬프트 4에서 확정된 대본 요약을 카드로 표시한다.
+    탭6(업로드 패키지)에서 사용한다.
+    """
+    script_full = st.session_state.get(P4_SCRIPT_FULL, "")
+    if not script_full:
+        st.warning("⚠️ 프롬프트 4(대본 작성)를 먼저 완료해주세요.")
+        return False
+
+    with st.expander("📌 4단계 확정 내용 — 대본 요약", expanded=True):
+        st.caption("아래 대본이 업로드 패키지(탭6)에 자동으로 전달됩니다.")
+        char_count = len(script_full)
+        est_minutes = round(char_count / 500)
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("총 글자 수", f"{char_count:,}자")
+        with col2:
+            st.metric("예상 러닝타임", f"약 {est_minutes}분")
+        with col3:
+            st.metric("확정 상태",
+                      "✅ 확정" if st.session_state.get(P4_CONFIRMED) else "⚠️ 미확정")
+
+        if editable:
+            new_script = st.text_area(
+                "대본 전체 편집",
+                value=script_full,
+                height=300,
+                key="p4_edit_full"
+            )
+            if st.button("✅ 편집 내용 확정", key="p4_confirm_edit", type="primary"):
+                st.session_state[P4_SCRIPT_FULL] = new_script
+                st.session_state[P4_CONFIRMED] = True
+                st.success("대본이 저장되었습니다!")
+        else:
+            st.text_area(
+                "대본 미리보기 (앞 500자)",
+                value=script_full[:500] + ("..." if len(script_full) > 500 else ""),
+                height=150,
+                disabled=True
+            )
 
     return True
