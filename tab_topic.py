@@ -548,7 +548,7 @@ def render_topic_tab():
                 "예) 부동산, https://youtube.com/..., 부자아빠"
             ),
             height=100,
-            key="p1_benchmark",
+            key="p1_benchmark_input",
         )
 
         video_length = st.radio(
