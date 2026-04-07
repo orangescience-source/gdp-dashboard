@@ -29,8 +29,11 @@ P3_EMOTION_MAP    = "p3_emotion_map"     # 감정 지도 리스트
 P3_MINI_HOOKS     = "p3_mini_hooks"      # 미니훅 4개 리스트
 P3_SCENE_META     = "p3_scene_meta"      # 프롬프트 4·5 연동 메타
 
-# 프롬프트 4: 대본 작성 결과 (향후 추가)
+# 프롬프트 4: 대본 작성 결과
 P4_RESULT        = "p4_result"
+P4_SCRIPT        = "p4_script"          # 섹션별 대본 dict
+P4_TOTAL_WORDS   = "p4_total_words"     # 전체 글자수
+P4_WRITING_NOTES = "p4_writing_notes"   # 작성 노트
 
 
 # ──────────────────────────────────────────
