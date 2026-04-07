@@ -461,35 +461,90 @@ def render_thumbnail_tab():
 
     # ── Best 조합 추천 ──
     st.subheader("🔗 썸네일-제목 Best 조합 3")
+    st.caption("synergy_score 5점 만점 — 4점 이상 조합이 CTR 8%+ 달성 가능")
+
     for combo in result.get("best_combinations", []):
-        with st.expander(
-            f"조합 {combo.get('rank')} — 썸네일 {combo.get('thumbnail_id')} + 제목 {combo.get('title_id')}"
+        rank = combo.get("rank", 0)
+        score = combo.get("synergy_score", 0)
+        ctr_pred = combo.get("ctr_prediction", "")
+        score_color = "#2ecc71" if score >= 4 else ("#f39c12" if score >= 3 else "#e74c3c")
+        score_stars = "★" * score + "☆" * (5 - score)
+
+        # 해당 썸네일/제목 미리보기
+        t_id = combo.get("thumbnail_id")
+        ti_id = combo.get("title_id")
+        thumb_prev = next((t for t in thumbnails if t.get("id") == t_id), {})
+        title_prev = next((t for t in titles if t.get("id") == ti_id), {})
+
+        st.markdown(
+            f"""
+            <div style="border:2px solid {score_color}; border-radius:12px;
+                        padding:16px; margin-bottom:12px; background:#fff; color:#1a1a1a;">
+                <div style="display:flex; justify-content:space-between; align-items:center;
+                            margin-bottom:12px;">
+                    <span style="font-size:15px; font-weight:700; color:#111;">
+                        조합 {rank} &nbsp;·&nbsp; 썸네일 {t_id} + 제목 {ti_id}
+                    </span>
+                    <span style="font-size:14px; color:{score_color}; font-weight:700;">
+                        {score_stars} &nbsp; CTR {ctr_pred}
+                    </span>
+                </div>
+                <div style="background:#f8f8f8; border-radius:8px; padding:10px 14px;
+                            margin-bottom:10px; font-size:13px; color:#222;">
+                    <div style="margin-bottom:4px;">
+                        💬 <b>말풍선:</b> {thumb_prev.get('speech_bubble','')}
+                        &nbsp;|&nbsp; 1행: {thumb_prev.get('line1','')}
+                        &nbsp;|&nbsp; 2행: {thumb_prev.get('line2','')}
+                    </div>
+                    <div style="font-size:14px; font-weight:700; color:#111; margin-top:6px;">
+                        📌 {title_prev.get('title','')}
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px;">
+                    <div style="background:#e8f5e9; border-radius:6px; padding:8px 10px; color:#1b5e20;">
+                        🔄 <b>감정 루프</b><br>{combo.get('emotion_loop','')}
+                    </div>
+                    <div style="background:#e3f2fd; border-radius:6px; padding:8px 10px; color:#0d47a1;">
+                        ❓ <b>정보 갭</b><br>{combo.get('info_gap','')}
+                    </div>
+                    <div style="background:#fff3e0; border-radius:6px; padding:8px 10px; color:#e65100;">
+                        🔍 <b>검색 커버</b><br>{combo.get('keyword_coverage','')}
+                    </div>
+                    <div style="background:#fce4ec; border-radius:6px; padding:8px 10px; color:#880e4f;">
+                        🤝 <b>약속 일치</b><br>{combo.get('promise_match','')}
+                    </div>
+                </div>
+                <div style="margin-top:8px; background:#f3e5f5; border-radius:6px;
+                            padding:8px 10px; font-size:12px; color:#4a148c;">
+                    👁️ <b>시선 흐름:</b> {combo.get('read_flow','')}
+                </div>
+                <div style="margin-top:8px; background:#e8eaf6; border-radius:6px;
+                            padding:8px 10px; font-size:12px; color:#1a237e;">
+                    🎬 <b>Hook 연결:</b> {combo.get('hook_connection','')}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if st.button(
+            f"✅ 조합 {rank} 한 번에 확정 (CTR {ctr_pred})",
+            key=f"combo_{rank}",
+            type="primary" if score >= 4 else "secondary",
         ):
-            st.markdown(f"**선정 이유:** {combo.get('reason','')}")
-            st.markdown(f"**감정 기능:** {combo.get('emotion_function','')}")
-            st.markdown(f"**검색 기능:** {combo.get('search_function','')}")
-            st.markdown(f"**Hook 연결:** {combo.get('hook_connection','')}")
-
-            if st.button(
-                "이 조합으로 한 번에 확정",
-                key=f"combo_{combo.get('rank')}",
-            ):
-                thumb_id = combo.get("thumbnail_id")
-                title_id = combo.get("title_id")
-                thumb = next((t for t in thumbnails if t.get("id") == thumb_id), {})
-                title_obj = next((t for t in titles if t.get("id") == title_id), {})
-
-                st.session_state["p2_selected_thumb_id"] = thumb_id
-                st.session_state["p2_selected_title_id"] = title_id
-                thumb_text = (
-                    f"[말풍선] {thumb.get('speech_bubble','')} ({thumb.get('speech_bubble_color','')})\n"
-                    f"[1행] {thumb.get('line1','')} ({thumb.get('line1_color','')})\n"
-                    f"[2행] {thumb.get('line2','')} ({thumb.get('line2_color','')})"
-                )
-                st.session_state[P2_THUMBNAIL] = thumb_text
-                st.session_state[P2_TITLE] = title_obj.get("title", "")
-                st.success(f"조합 {combo.get('rank')} 확정 완료!")
-                st.rerun()
+            thumb = next((t for t in thumbnails if t.get("id") == t_id), {})
+            title_obj = next((t for t in titles if t.get("id") == ti_id), {})
+            st.session_state["p2_selected_thumb_id"] = t_id
+            st.session_state["p2_selected_title_id"] = ti_id
+            thumb_text = (
+                f"[말풍선] {thumb.get('speech_bubble','')} ({thumb.get('speech_bubble_color','')})\n"
+                f"[1행] {thumb.get('line1','')} ({thumb.get('line1_color','')})\n"
+                f"[2행] {thumb.get('line2','')} ({thumb.get('line2_color','')})"
+            )
+            st.session_state[P2_THUMBNAIL] = thumb_text
+            st.session_state[P2_TITLE] = title_obj.get("title", "")
+            st.success(f"✅ 조합 {rank} 확정! 제목: {title_obj.get('title','')}")
+            st.rerun()
 
     st.divider()
 
@@ -511,20 +566,96 @@ def render_thumbnail_tab():
 
     st.divider()
 
-    # ── 이미지 프롬프트 3종 ──
-    st.subheader("🖼️ 썸네일 이미지 프롬프트 3종 (나노바나나 PRO용)")
+    # ── 이미지 프롬프트 (나노바나나 PRO용) ──
+    st.subheader("🖼️ 썸네일 이미지 프롬프트 (나노바나나 PRO용)")
+    st.caption("각 프롬프트에는 한국어 텍스트 오버레이가 포함됩니다. 복사 후 나노바나나에 바로 붙여넣으세요.")
+
+    color_name_map = {
+        "white": "흰색", "yellow": "노란색",
+        "light-green": "연두색", "red": "빨간색",
+    }
+
     for img in result.get("image_prompts", []):
-        with st.expander(f"프롬프트 {img.get('id')} — {img.get('concept','')}"):
-            prompt_text = img.get("prompt_en", "")
-            st.text_area(
-                "영어 프롬프트 (복사하여 사용)",
-                value=prompt_text,
-                height=200,
-                key=f"img_prompt_{img.get('id')}",
+        img_id = img.get("id", 0)
+        t_id = img.get("thumbnail_id", img_id)
+        concept = img.get("concept", "")
+        overlay = img.get("text_overlay", {})
+        # 구버전 호환: prompt_en 또는 full_prompt_en
+        full_prompt = img.get("full_prompt_en") or img.get("prompt_en", "")
+
+        # 연결된 썸네일 찾기
+        linked_thumb = next((t for t in thumbnails if t.get("id") == t_id), {})
+
+        with st.expander(
+            f"🖼️ 프롬프트 {img_id} — {concept}  (썸네일 {t_id} 연결)",
+            expanded=(img_id == 1),
+        ):
+            # 텍스트 오버레이 미리보기
+            sb_text  = overlay.get("speech_bubble") or linked_thumb.get("speech_bubble", "")
+            sb_color = overlay.get("speech_bubble_color") or linked_thumb.get("speech_bubble_color", "")
+            l1_text  = overlay.get("line1") or linked_thumb.get("line1", "")
+            l1_color = overlay.get("line1_color") or linked_thumb.get("line1_color", "")
+            l2_text  = overlay.get("line2") or linked_thumb.get("line2", "")
+            l2_color = overlay.get("line2_color") or linked_thumb.get("line2_color", "")
+
+            st.markdown(
+                f"""
+                <div style="background:#1a1a2e; border-radius:10px; padding:16px;
+                            margin-bottom:12px; color:#fff; font-family:monospace;">
+                    <div style="font-size:11px; color:#aaa; margin-bottom:10px;">
+                        📐 썸네일 텍스트 오버레이 미리보기
+                    </div>
+                    <div style="background:#2d2d44; border-radius:6px; padding:10px 14px;
+                                margin-bottom:6px;">
+                        <span style="font-size:11px; color:#aaa;">💬 말풍선</span><br>
+                        <span style="font-size:18px; font-weight:900; color:#FFD700;
+                                     text-shadow: 2px 2px 0 #000, -2px -2px 0 #000;">
+                            {sb_text}
+                        </span>
+                        <span style="font-size:11px; color:#aaa; margin-left:8px;">
+                            ({color_name_map.get(sb_color, sb_color)})
+                        </span>
+                    </div>
+                    <div style="background:#2d2d44; border-radius:6px; padding:10px 14px;
+                                margin-bottom:6px;">
+                        <span style="font-size:11px; color:#aaa;">📝 1행</span><br>
+                        <span style="font-size:18px; font-weight:900; color:#FFD700;
+                                     text-shadow: 2px 2px 0 #000, -2px -2px 0 #000;">
+                            {l1_text}
+                        </span>
+                        <span style="font-size:11px; color:#aaa; margin-left:8px;">
+                            ({color_name_map.get(l1_color, l1_color)})
+                        </span>
+                    </div>
+                    <div style="background:#2d2d44; border-radius:6px; padding:10px 14px;">
+                        <span style="font-size:11px; color:#aaa;">📝 2행</span><br>
+                        <span style="font-size:18px; font-weight:900; color:#90EE90;
+                                     text-shadow: 2px 2px 0 #000, -2px -2px 0 #000;">
+                            {l2_text}
+                        </span>
+                        <span style="font-size:11px; color:#aaa; margin-left:8px;">
+                            ({color_name_map.get(l2_color, l2_color)})
+                        </span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            if st.button(f"📋 이 프롬프트 선택 저장", key=f"save_img_{img.get('id')}"):
-                st.session_state[P2_IMAGE_PROMPT] = prompt_text
-                st.success("이미지 프롬프트가 저장되었습니다!")
+
+            st.text_area(
+                "📋 나노바나나 PRO 프롬프트 (복사하여 붙여넣기)",
+                value=full_prompt,
+                height=220,
+                key=f"img_prompt_{img_id}",
+            )
+
+            col_save, col_copy = st.columns([1, 1])
+            with col_save:
+                if st.button(f"💾 이 프롬프트 저장", key=f"save_img_{img_id}"):
+                    st.session_state[P2_IMAGE_PROMPT] = full_prompt
+                    st.success("이미지 프롬프트가 저장되었습니다!")
+            with col_copy:
+                st.info("💡 위 텍스트박스 우상단 📋 아이콘으로 복사하세요")
 
     st.divider()
 

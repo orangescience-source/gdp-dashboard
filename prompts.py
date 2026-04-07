@@ -138,13 +138,39 @@ Hook 문장 후보: {hook_sentence}
 - 필요 시 주인공 미등장 허용
 - hero-only 구도 남발 금지
 
+[조합 선정 기준 — COMBINATION SCORING]
+강한 조합이란:
+1. 감정 루프: 썸네일이 감정(공포/욕망/호기심)을 "점화"하고, 제목이 그 감정을 "구체화"한다
+2. 정보 갭: 썸네일 텍스트가 질문을 만들고, 제목이 절반만 답해 클릭을 유도한다
+3. 검색 커버: 제목에 실제 검색 키워드가 포함되어 검색 노출도 확보한다
+4. 약속 일치: 썸네일에서 한 약속(충격적 사실, 반전, 이득)을 제목이 배신하지 않는다
+5. 시선 흐름: 말풍선 → 1행 → 2행 → 제목으로 이어지는 읽기 흐름이 자연스럽다
+
+각 조합에 대해 위 5가지 기준 점수(각 1점)를 합산하여 synergy_score(0-5)를 부여한다.
+rank 1 조합은 반드시 synergy_score 4 이상이어야 한다.
+
+[나노바나나 이미지 프롬프트 작성 규칙]
+image_prompts는 반드시 각 썸네일(thumbnail_id)과 1:1로 연결된다.
+full_prompt_en에는 아래 5개 요소를 반드시 포함한다:
+
+① SCENE: 배경 장면 묘사 (장소, 분위기, 색감, 조명)
+② CHARACTER: 인물 묘사 + 위치 (오프센터 배치, 표정, 의상)
+   - protagonist_needed가 "미등장권장"이면 CHARACTER 생략 가능
+③ TEXT OVERLAY: 한국어 텍스트를 아래 형식으로 명시
+   - Speech bubble top-left: "[말풍선 텍스트]" white bold Korean text, thick black outline
+   - Bottom line 1 center: "[1행 텍스트]" yellow bold Korean text, thick black outline
+   - Bottom line 2 center: "[2행 텍스트]" light-green bold Korean text, thick black outline
+④ STYLE: 화풍/스타일 (photorealistic / illustration / cinematic 등)
+⑤ QUALITY: --ar 16:9 --style raw --q 2 (나노바나나 권장 파라미터)
+
 [CRITICAL OUTPUT RULE]
 - 응답 첫 글자는 반드시 {{ 이어야 한다
 - 응답 마지막 글자는 반드시 }} 이어야 한다
 - 마크다운 코드블록(```) 절대 사용 금지
 - 설명 텍스트 절대 금지
 - 순수 JSON만 반환한다
-- 각 문자열 필드는 80자 이내로 간결하게 작성
+- 각 문자열 필드는 120자 이내로 간결하게 작성
+- full_prompt_en은 예외적으로 300자까지 허용
 
 [OUTPUT JSON SCHEMA]
 반드시 아래 구조의 JSON만 반환한다:
@@ -185,10 +211,14 @@ Hook 문장 후보: {hook_sentence}
       "rank": 1,
       "thumbnail_id": 1,
       "title_id": 1,
-      "reason": "왜 이 조합이 강한가",
-      "emotion_function": "썸네일이 누르는 감정 버튼",
-      "search_function": "제목이 수행하는 검색/설명 기능",
-      "hook_connection": "30초 Hook으로 이어지는 방식"
+      "synergy_score": 5,
+      "ctr_prediction": "8%+",
+      "emotion_loop": "썸네일이 점화하는 감정 → 제목이 구체화하는 방식",
+      "info_gap": "시청자 머릿속에 생기는 질문 한 줄",
+      "keyword_coverage": "제목에 포함된 핵심 검색어",
+      "promise_match": "썸네일 약속과 제목 내용의 일치 여부",
+      "read_flow": "말풍선→1행→2행→제목 읽기 흐름 설명",
+      "hook_connection": "이 조합에서 자연스럽게 이어지는 초반 30초 Hook 방향"
     }}
   ],
   "hook_30sec": {{
@@ -199,8 +229,17 @@ Hook 문장 후보: {hook_sentence}
   "image_prompts": [
     {{
       "id": 1,
-      "concept": "컨셉명",
-      "prompt_en": "영어 이미지 프롬프트 전문"
+      "thumbnail_id": 1,
+      "concept": "컨셉명 (한국어)",
+      "text_overlay": {{
+        "speech_bubble": "썸네일과 동일한 말풍선 한국어 텍스트",
+        "speech_bubble_color": "white 또는 yellow",
+        "line1": "썸네일과 동일한 1행 한국어 텍스트",
+        "line1_color": "yellow 또는 white",
+        "line2": "썸네일과 동일한 2행 한국어 텍스트",
+        "line2_color": "light-green 또는 red"
+      }},
+      "full_prompt_en": "SCENE: [배경묘사]. CHARACTER: [인물+위치, 또는 생략]. TEXT OVERLAY: Speech bubble '[말풍선한국어]' white bold Korean, thick black outline; Bottom line1 '[1행한국어]' yellow bold Korean, thick black outline; Bottom line2 '[2행한국어]' light-green bold Korean, thick black outline. STYLE: [화풍]. --ar 16:9 --style raw --q 2"
     }}
   ]
 }}
