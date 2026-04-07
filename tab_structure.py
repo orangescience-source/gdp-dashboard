@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 
 from channel_db import CHANNEL_DB
 from prompts import PROMPT_3_SYSTEM
+from error_handler import handle_api_error
 from session_state_manager import (
     P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
     P2_TITLE, P2_THUMBNAIL, P2_HOOK_30SEC,
@@ -615,9 +616,9 @@ def render_structure_tab():
             except ValueError as e:
                 st.error(f"분석 오류: {e}")
             except RuntimeError as e:
-                st.error(f"API 오류: {e}")
+                handle_api_error(e, context="대본 구조 설계")
             except Exception as e:
-                st.error(f"오류 발생: {e}")
+                handle_api_error(e, context="대본 구조 설계")
 
     result = st.session_state.get(P3_RESULT)
     if not result:

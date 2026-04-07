@@ -10,6 +10,7 @@ from openpyxl.styles import Font, PatternFill
 
 from channel_db import CHANNEL_DB
 from prompts import PROMPT_2_SYSTEM
+from error_handler import handle_api_error
 from session_state_manager import (
     P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
     P2_RESULT, P2_THUMBNAIL, P2_TITLE, P2_HOOK_30SEC, P2_IMAGE_PROMPT,
@@ -358,7 +359,7 @@ def render_thumbnail_tab():
                 st.error(f"API 오류: {str(e)}")
                 return
             except Exception as e:
-                st.error(f"예기치 않은 오류: {str(e)}")
+                handle_api_error(e, context="썸네일·제목")
                 return
 
     result = st.session_state.get(P2_RESULT)

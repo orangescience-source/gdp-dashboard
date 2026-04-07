@@ -15,12 +15,16 @@ from tab_thumbnail import render_thumbnail_tab
 from tab_structure import render_structure_tab
 from tab_script import render_script_tab
 from tab_package import render_package_tab
+from session_state_manager import init_session_state, reset_pipeline
+from error_handler import handle_api_error
 
 st.set_page_config(
     page_title="YouTube 니치 발굴 대시보드",
     page_icon="🎬",
     layout="wide",
 )
+
+init_session_state()
 
 # ── API Key 처리 ──────────────────────────────────────────────────────────────
 
@@ -396,6 +400,34 @@ with st.sidebar:
         "- 기회 점수: 세 지표 종합 (1-10)"
     )
 
+    # ── 기획 진행 현황 ────────────────────────────────────────────────────────
+    st.divider()
+    p1_done = bool(st.session_state.get("p1_topic_title"))
+    p2_done = bool(st.session_state.get("p2_title"))
+    p3_done = bool(st.session_state.get("p3_structure"))
+    p4_done = bool(st.session_state.get("p4_confirmed"))
+
+    st.markdown(
+        f"**기획 진행 현황**  \n"
+        f"{'✅' if p1_done else '⬜'} 주제 발굴  \n"
+        f"{'✅' if p2_done else '⬜'} 썸네일·제목  \n"
+        f"{'✅' if p3_done else '⬜'} 대본 구조  \n"
+        f"{'✅' if p4_done else '⬜'} 대본 완성"
+    )
+
+    st.divider()
+
+    if st.button(
+        "🔄 전체 초기화 (처음부터 다시)",
+        type="secondary",
+        use_container_width=True,
+    ):
+        reset_pipeline()
+
+    st.divider()
+    st.caption("YouTube 채널 전략 도구 v1.0")
+    st.caption("Powered by Claude Sonnet 4.6")
+
 # ── 탭 1: 니치 발굴 ──────────────────────────────────────────────────────────
 
 with tab1:
@@ -412,7 +444,7 @@ with tab1:
                 except json.JSONDecodeError as e:
                     st.error(f"응답 파싱 오류: {e}\n다시 시도해주세요.")
                 except Exception as e:
-                    st.error(f"분석 오류: {e}")
+                    handle_api_error(e, context="니치 발굴")
 
     if "result" in st.session_state:
         result = st.session_state["result"]

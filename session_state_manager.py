@@ -302,3 +302,59 @@ def render_p4_confirmed_card(editable=False):
             )
 
     return True
+
+# ──────────────────────────────────────────
+# 초기화 / 리셋
+# ──────────────────────────────────────────
+
+def init_session_state():
+    """
+    앱 최초 실행 시 모든 session_state 키를 안전하게 초기화.
+    streamlit_app.py 최상단에서 호출한다.
+    """
+    defaults = {
+        P1_CHANNEL: "",
+        P1_TOPIC_TITLE: "",
+        P1_CORE_MESSAGE: "",
+        P1_EMOTION: "",
+        P1_HOOK: "",
+        P1_RESULT: None,
+        P2_RESULT: None,
+        P2_THUMBNAIL: "",
+        P2_TITLE: "",
+        P2_HOOK_30SEC: "",
+        P2_IMAGE_PROMPT: "",
+        P3_RESULT: None,
+        P3_VIDEO_LENGTH: "20분 내외 (10,000자)",
+        P3_STRUCTURE: {},
+        P3_EMOTION_MAP: [],
+        P3_MINI_HOOKS: [],
+        P3_SCENE_META: {},
+        P4_RESULT: None,
+        P4_SCRIPT_FRONT: "",
+        P4_SCRIPT_BACK: "",
+        P4_SCRIPT_FULL: "",
+        P4_VIZ_MEMO: "",
+        P4_CONFIRMED: False,
+    }
+    for key, default in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
+
+
+def reset_pipeline():
+    """
+    전체 파이프라인 초기화 (처음부터 다시 시작).
+    """
+    keys_to_clear = [
+        P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION,
+        P1_HOOK, P1_RESULT,
+        P2_RESULT, P2_THUMBNAIL, P2_TITLE, P2_HOOK_30SEC, P2_IMAGE_PROMPT,
+        P3_RESULT, P3_STRUCTURE, P3_EMOTION_MAP, P3_MINI_HOOKS, P3_SCENE_META,
+        P4_RESULT, P4_SCRIPT_FRONT, P4_SCRIPT_BACK,
+        P4_SCRIPT_FULL, P4_VIZ_MEMO, P4_CONFIRMED,
+    ]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.rerun()

@@ -6,6 +6,7 @@ from datetime import datetime
 
 from channel_db import CHANNEL_DB
 from prompts import PROMPT_4_SYSTEM_BASE, PROMPT_4_FRONT_SUFFIX, PROMPT_4_BACK_SUFFIX
+from error_handler import handle_api_error
 from session_state_manager import (
     P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
     P2_TITLE, P2_THUMBNAIL, P2_HOOK_30SEC,
@@ -445,7 +446,7 @@ def render_script_tab():
             st.success(f"✅ 앞부분 생성 완료! ({len(front_text):,}자) 이제 뒷부분을 생성하세요.")
             st.rerun()
         except Exception as e:
-            st.error(f"생성 중 오류: {e}")
+            handle_api_error(e, context="대본 앞부분 생성")
 
     # ── 뒷부분 생성 ───────────────────────────────────────────────────────────
     if back_btn:
@@ -480,7 +481,7 @@ def render_script_tab():
             st.success(f"✅ 뒷부분 생성 완료! 전체 대본 {len(full_script):,}자 완성.")
             st.rerun()
         except Exception as e:
-            st.error(f"생성 중 오류: {e}")
+            handle_api_error(e, context="대본 뒷부분 생성")
 
     # ── 결과 표시 ─────────────────────────────────────────────────────────────
     front_text  = st.session_state.get(P4_SCRIPT_FRONT, "")

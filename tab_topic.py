@@ -10,6 +10,7 @@ from openpyxl.styles import Font, PatternFill, Border, Side
 
 from channel_db import CHANNEL_DB
 from prompts import PROMPT_1_SYSTEM
+from error_handler import handle_api_error
 from session_state_manager import (
     P1_CHANNEL, P1_BENCHMARK, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
     render_pipeline_status,
@@ -600,7 +601,7 @@ def render_topic_tab():
                     st.error(f"JSON 파싱 오류: {e}\n다시 시도해주세요.")
                     st.stop()
                 except Exception as e:
-                    st.error(f"분석 오류: {e}")
+                    handle_api_error(e, context="주제 발굴")
                     st.stop()
 
         result = st.session_state.get("p1_result")
