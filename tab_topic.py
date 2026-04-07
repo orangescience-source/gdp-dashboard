@@ -158,10 +158,11 @@ def render_persona_card(channel_name: str):
             background: #f8f9fa;
             border-radius: 0 8px 8px 0;
             margin-bottom: 16px;
+            color: #1a1a1a;
         ">
-            <div style="font-size:13px; color:#888; margin-bottom:4px;">자동 매칭된 채널 페르소나</div>
-            <div style="font-size:16px; font-weight:600; color:#1a1a1a;">{channel_name}</div>
-            <div style="font-size:13px; color:#444; margin-top:4px;">
+            <div style="font-size:12px; color:#666; margin-bottom:4px;">자동 매칭된 채널 페르소나</div>
+            <div style="font-size:16px; font-weight:700; color:#111;">{channel_name}</div>
+            <div style="font-size:13px; color:#333; margin-top:6px; line-height:1.6;">
                 🎭 <b>{info['host']}</b> — {info['host_desc']}<br>
                 🎯 {info['tone']}<br>
                 👥 타겟: {info['target']}
@@ -296,35 +297,45 @@ def render_topic_card(topic: dict, is_top: bool = False):
             padding: 16px;
             margin-bottom: 12px;
             background: {header_bg};
+            color: #1a1a1a;
         ">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <span style="font-size:13px; color:#888;">{top_badge}주제 {rank}</span>
-                <span style="font-size:12px;">{stars}</span>
+                <span style="font-size:13px; color:#555; font-weight:600;">{top_badge}주제 {rank}</span>
+                <span style="font-size:13px;">{stars}</span>
             </div>
-            <div style="font-size:16px; font-weight:600; margin-bottom:8px;">{topic.get("title","")}</div>
-            <div style="font-size:13px; color:#555; margin-bottom:10px;">{topic.get("core_message","")}</div>
+            <div style="font-size:17px; font-weight:700; color:#111; margin-bottom:8px;
+                        line-height:1.4;">{topic.get("title","")}</div>
+            <div style="font-size:14px; color:#333; margin-bottom:10px; line-height:1.5;">
+                {topic.get("core_message","")}
+            </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-                <span style="font-size:11px; background:#eef; padding:3px 8px; border-radius:20px;">
+                <span style="font-size:12px; color:#1a237e; background:#e8eaf6;
+                             padding:4px 10px; border-radius:20px; font-weight:500;">
                     검색량 {search_badge} {topic.get("search_volume","")}
                 </span>
-                <span style="font-size:11px; background:#eef; padding:3px 8px; border-radius:20px;">
+                <span style="font-size:12px; color:#4a148c; background:#f3e5f5;
+                             padding:4px 10px; border-radius:20px; font-weight:500;">
                     경쟁도 {comp_badge} {topic.get("competition","")}
                 </span>
-                <span style="font-size:11px; background:#eef; padding:3px 8px; border-radius:20px;">
+                <span style="font-size:12px; color:#1b5e20; background:#e8f5e9;
+                             padding:4px 10px; border-radius:20px; font-weight:500;">
                     난이도 {diff_badge} {topic.get("difficulty","")}
                 </span>
-                <span style="font-size:11px; color:{ctr_color}; background:#f8fff8;
-                             padding:3px 8px; border-radius:20px; border:1px solid {ctr_color};">
+                <span style="font-size:12px; color:{ctr_color}; background:#f8fff8;
+                             padding:4px 10px; border-radius:20px; border:1px solid {ctr_color};
+                             font-weight:600;">
                     CTR {ctr}
                 </span>
             </div>
-            <div style="font-size:12px; color:#666; background:#f5f5f5;
-                        padding:8px 12px; border-radius:8px; margin-bottom:6px;">
-                💡 차별화: {topic.get("differentiation","")}
+            <div style="font-size:13px; color:#333; background:#f5f5f5;
+                        padding:10px 14px; border-radius:8px; margin-bottom:8px;
+                        border-left:3px solid #bbb;">
+                💡 <b>차별화:</b> {topic.get("differentiation","")}
             </div>
-            <div style="font-size:12px; color:#555; background:#f0f8ff;
-                        padding:8px 12px; border-radius:8px;">
-                🎭 채널 앵글: {topic.get("channel_angle","")}
+            <div style="font-size:13px; color:#333; background:#e8f4fd;
+                        padding:10px 14px; border-radius:8px;
+                        border-left:3px solid #4A90E2;">
+                🎭 <b>채널 앵글:</b> {topic.get("channel_angle","")}
             </div>
         </div>
         """,

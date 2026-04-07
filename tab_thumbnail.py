@@ -168,36 +168,55 @@ def render_thumbnail_card(thumb: dict, selected_id: int):
         f"""
         <div style="
             border:{border}; border-radius:10px;
-            padding:14px; margin-bottom:10px;
-            background:{bg};
+            padding:16px; margin-bottom:12px;
+            background:{bg}; color:#1a1a1a;
         ">
-            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:12px; color:#888;">문구 {tid} — {thumb.get('type','')}</span>
-                <span style="font-size:12px; color:#4A90E2; font-weight:600;">{selected_badge}</span>
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <span style="font-size:13px; color:#555; font-weight:600;">
+                    문구 {tid} &nbsp;·&nbsp; {thumb.get('type','')}
+                </span>
+                <span style="font-size:13px; color:#4A90E2; font-weight:700;">{selected_badge}</span>
             </div>
-            <div style="font-size:13px; margin-bottom:6px;">
-                💬 말풍선: <b>{thumb.get('speech_bubble','')}</b>
-                &nbsp; {color_dot(thumb.get('speech_bubble_color',''))}
-                <span style="font-size:11px; color:#888;">{thumb.get('speech_bubble_color','')}</span>
+
+            <div style="background:#fff; border:1px solid #e8e8e8; border-radius:8px;
+                        padding:12px 14px; margin-bottom:10px;">
+                <div style="font-size:14px; color:#222; margin-bottom:6px;">
+                    💬 <span style="color:#555;">말풍선</span>
+                    &nbsp;<b style="font-size:16px; color:#111;">{thumb.get('speech_bubble','')}</b>
+                    &nbsp; {color_dot(thumb.get('speech_bubble_color',''))}
+                    <span style="font-size:12px; color:#666; font-style:italic;">
+                        {thumb.get('speech_bubble_color','')}
+                    </span>
+                </div>
+                <div style="font-size:14px; color:#222; margin-bottom:4px;">
+                    📝 <span style="color:#555;">1행</span>
+                    &nbsp;<b style="font-size:16px; color:#111;">{thumb.get('line1','')}</b>
+                    &nbsp; {color_dot(thumb.get('line1_color',''))}
+                    <span style="font-size:12px; color:#666; font-style:italic;">
+                        {thumb.get('line1_color','')}
+                    </span>
+                </div>
+                <div style="font-size:14px; color:#222;">
+                    📝 <span style="color:#555;">2행</span>
+                    &nbsp;<b style="font-size:16px; color:#111;">{thumb.get('line2','')}</b>
+                    &nbsp; {color_dot(thumb.get('line2_color',''))}
+                    <span style="font-size:12px; color:#666; font-style:italic;">
+                        {thumb.get('line2_color','')}
+                    </span>
+                </div>
             </div>
-            <div style="font-size:13px; margin-bottom:4px;">
-                📝 1행: <b>{thumb.get('line1','')}</b>
-                &nbsp; {color_dot(thumb.get('line1_color',''))}
-                <span style="font-size:11px; color:#888;">{thumb.get('line1_color','')}</span>
-            </div>
-            <div style="font-size:13px; margin-bottom:8px;">
-                📝 2행: <b>{thumb.get('line2','')}</b>
-                &nbsp; {color_dot(thumb.get('line2_color',''))}
-                <span style="font-size:11px; color:#888;">{thumb.get('line2_color','')}</span>
-            </div>
-            <div style="display:flex; gap:8px;">
-                <span style="font-size:11px; background:#eef; padding:3px 8px; border-radius:20px;">
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <span style="font-size:12px; color:#333; background:#e8eaf6;
+                             padding:4px 10px; border-radius:20px; font-weight:500;">
                     총 {thumb.get('total_chars',0)}자
                 </span>
-                <span style="font-size:11px; background:#efe; padding:3px 8px; border-radius:20px;">
+                <span style="font-size:12px; color:#1b5e20; background:#e8f5e9;
+                             padding:4px 10px; border-radius:20px; font-weight:600;">
                     CTR {thumb.get('expected_ctr','')}
                 </span>
-                <span style="font-size:11px; background:#fff3cd; padding:3px 8px; border-radius:20px;">
+                <span style="font-size:12px; color:#5d4037; background:#fff3e0;
+                             padding:4px 10px; border-radius:20px; font-weight:500;">
                     장면적합 {thumb.get('scene_fit','')}
                 </span>
             </div>
@@ -403,24 +422,28 @@ def render_thumbnail_tab():
 
         st.markdown(
             f"""
-            <div style="border:{border}; border-radius:10px; padding:12px;
-                        margin-bottom:8px; background:{bg};">
-                <div style="display:flex; justify-content:space-between;">
-                    <span style="font-size:12px; color:#888;">제목 {tid}</span>
-                    <span style="font-size:12px; color:#4A90E2; font-weight:600;">{badge}</span>
+            <div style="border:{border}; border-radius:10px; padding:14px;
+                        margin-bottom:10px; background:{bg}; color:#1a1a1a;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <span style="font-size:13px; color:#555; font-weight:600;">제목 {tid}</span>
+                    <span style="font-size:13px; color:#4A90E2; font-weight:700;">{badge}</span>
                 </div>
-                <div style="font-size:15px; font-weight:600; margin:6px 0;">
+                <div style="font-size:17px; font-weight:700; color:#111; margin-bottom:10px;
+                            line-height:1.4;">
                     {title.get('title','')}
                 </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <span style="font-size:11px; background:#eef; padding:2px 8px; border-radius:20px;">
-                        키워드: {title.get('main_keyword','')}
+                    <span style="font-size:12px; color:#1a237e; background:#e8eaf6;
+                                 padding:4px 10px; border-radius:20px; font-weight:500;">
+                        🔑 {title.get('main_keyword','')}
                     </span>
-                    <span style="font-size:11px; background:#eef; padding:2px 8px; border-radius:20px;">
-                        감정: {title.get('emotion_device','')}
+                    <span style="font-size:12px; color:#4a148c; background:#f3e5f5;
+                                 padding:4px 10px; border-radius:20px; font-weight:500;">
+                        💢 {title.get('emotion_device','')}
                     </span>
-                    <span style="font-size:11px; background:#eef; padding:2px 8px; border-radius:20px;">
-                        검색적합: {title.get('search_fit','')}
+                    <span style="font-size:12px; color:#1b5e20; background:#e8f5e9;
+                                 padding:4px 10px; border-radius:20px; font-weight:500;">
+                        🔍 검색적합 {title.get('search_fit','')}
                     </span>
                 </div>
             </div>

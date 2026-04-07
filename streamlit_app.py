@@ -333,6 +333,25 @@ def generate_csv(result: dict, keywords: str) -> bytes:
 
 # ── 페이지 레이아웃 ───────────────────────────────────────────────────────────
 
+# 전역 CSS: 탭 글자 크기 확대 + 커스텀 카드 가독성
+st.markdown("""
+<style>
+/* 탭 버튼 글자 크기·굵기 */
+.stTabs [data-baseweb="tab"] {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    padding: 10px 22px !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: #4A90E2 !important;
+}
+/* 커스텀 HTML 카드 내 기본 텍스트 강제 */
+.custom-card, .custom-card * {
+    box-sizing: border-box;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🎬 YouTube 채널 전략 도구")
 st.caption("Claude AI가 분석하는 유튜브 채널 전략 플랫폼")
 

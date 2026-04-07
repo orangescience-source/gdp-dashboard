@@ -67,6 +67,7 @@ def render_pipeline_status():
             background:#f8f9fa; padding:10px 16px;
             border-radius:10px; margin-bottom:16px;
             border: 1px solid #e0e0e0;
+            color: #1a1a1a;
         ">
             <div style="font-size:11px; color:#888; margin-bottom:6px;">📋 기획 진행 상태</div>
             {step_badge("1. 주제 발굴", p1_done, p1_active)}
