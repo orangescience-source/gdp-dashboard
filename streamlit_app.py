@@ -15,6 +15,7 @@ from tab_thumbnail import render_thumbnail_tab
 from tab_structure import render_structure_tab
 from tab_script import render_script_tab
 from tab_package import render_package_tab
+from tab_deploy import render_deploy_tab
 from session_state_manager import init_session_state, reset_pipeline
 from error_handler import handle_api_error
 
@@ -362,7 +363,7 @@ st.markdown("""
 st.title("🎬 YouTube 채널 전략 도구")
 st.caption("Claude AI가 분석하는 유튜브 채널 전략 플랫폼")
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목", "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목", "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지", "🚀 발행/배포"])
 
 # ── 사이드바 (니치 발굴 탭용) ─────────────────────────────────────────────────
 
@@ -614,3 +615,8 @@ with tab5:
 
 with tab6:
     render_package_tab()
+
+# ── 탭 7: 발행/배포 ──────────────────────────────────────────────────────────
+
+with tab7:
+    render_deploy_tab()

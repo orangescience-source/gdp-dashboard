@@ -37,6 +37,11 @@ P4_SCRIPT_FULL    = "p4_script_full"    # 전체 합본 대본 텍스트
 P4_VIZ_MEMO       = "p4_viz_memo"       # 시각화 연동 메모 (프롬프트 5용)
 P4_CONFIRMED      = "p4_confirmed"      # 최종 확정 여부 bool
 
+# 발행 / 배포
+UPLOAD_DESCRIPTION = "upload_description"  # 유튜브 설명란 텍스트
+UPLOAD_TAGS        = "upload_tags"         # 유튜브 태그 문자열
+UPLOAD_TISTORY_URL = "upload_tistory_url"  # 발행된 티스토리 URL
+
 
 # ──────────────────────────────────────────
 # 현재 기획 진행 상태 표시 컴포넌트
@@ -336,6 +341,9 @@ def init_session_state():
         P4_SCRIPT_FULL: "",
         P4_VIZ_MEMO: "",
         P4_CONFIRMED: False,
+        UPLOAD_DESCRIPTION: "",
+        UPLOAD_TAGS: "",
+        UPLOAD_TISTORY_URL: "",
     }
     for key, default in defaults.items():
         if key not in st.session_state:
@@ -353,6 +361,7 @@ def reset_pipeline():
         P3_RESULT, P3_STRUCTURE, P3_EMOTION_MAP, P3_MINI_HOOKS, P3_SCENE_META,
         P4_RESULT, P4_SCRIPT_FRONT, P4_SCRIPT_BACK,
         P4_SCRIPT_FULL, P4_VIZ_MEMO, P4_CONFIRMED,
+        UPLOAD_DESCRIPTION, UPLOAD_TAGS, UPLOAD_TISTORY_URL,
     ]
     for key in keys_to_clear:
         if key in st.session_state:
