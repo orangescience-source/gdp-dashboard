@@ -140,7 +140,7 @@ def _stream_script(system_prompt: str, user_message: str, placeholder) -> str:
     try:
         with client.messages.stream(
             model="claude-sonnet-4-6",
-            max_tokens=8000,
+            max_tokens=6000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         ) as stream:
