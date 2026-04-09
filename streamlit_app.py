@@ -89,17 +89,36 @@ def analyze_niches(api_key: str, keywords: str, n: int) -> dict:
     client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=4096,
+        max_tokens=8000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_prompt(keywords, n)}],
     )
     raw = response.content[0].text.strip()
-    # JSON 블록이 코드 펜스로 감싸진 경우 제거
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    return json.loads(raw.strip())
+
+    # 1단계: 코드 펜스 제거
+    import re
+    raw = re.sub(r'^```(?:json)?\s*', '', raw)
+    raw = re.sub(r'\s*```$', '', raw).strip()
+
+    # 2단계: 직접 파싱
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # 3단계: 중괄호 균형 추출 (응답이 잘린 경우 대비)
+    start = raw.find('{')
+    if start == -1:
+        raise json.JSONDecodeError("JSON 시작 없음", raw, 0)
+    depth = 0
+    for i, ch in enumerate(raw[start:], start):
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return json.loads(raw[start:i + 1])
+    raise json.JSONDecodeError("JSON 추출 실패 — 응답이 잘렸습니다", raw, len(raw))
 
 # ── 차트 헬퍼 ─────────────────────────────────────────────────────────────────
 
