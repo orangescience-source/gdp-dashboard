@@ -28,8 +28,13 @@ P3_EMOTION_MAP   = "p3_emotion_map"    # 확정된 감정 지도 리스트
 P3_MINI_HOOKS    = "p3_mini_hooks"     # 확정된 미니훅 4개 리스트
 P3_SCENE_META    = "p3_scene_meta"     # 확정된 장면 설계 메타 리스트
 
-# 프롬프트 4: 대본 작성 결과 (향후 추가)
-P4_RESULT        = "p4_result"
+# 프롬프트 4: 대본 작성 결과
+P4_RESULT        = "p4_result"         # 하위 호환용 (미사용 시 빈값)
+P4_SCRIPT_FRONT  = "p4_script_front"   # 앞부분 대본 (STAGE 1~4)
+P4_SCRIPT_BACK   = "p4_script_back"    # 뒷부분 대본 (STAGE 5~8)
+P4_SCRIPT_FULL   = "p4_script_full"    # 앞+뒤 합친 전체 대본
+P4_VIZ_MEMO      = "p4_viz_memo"       # 시각화 연동 메모 (## [시각화 연동 메모] 이하)
+P4_CONFIRMED     = "p4_confirmed"      # 확정 여부 (bool)
 
 
 # ──────────────────────────────────────────
@@ -44,7 +49,7 @@ def render_pipeline_status():
     p1_done = bool(st.session_state.get(P1_TOPIC_TITLE))
     p2_done = bool(st.session_state.get(P2_TITLE))
     p3_done = bool(st.session_state.get(P3_RESULT))
-    p4_done = bool(st.session_state.get(P4_RESULT))
+    p4_done = bool(st.session_state.get(P4_CONFIRMED))
 
     def step_badge(label, done, active=False):
         if done:
@@ -228,5 +233,30 @@ def render_p3_confirmed_card(editable=False):
             st.markdown(
                 f"**[{s.get('timestamp_start','')}] {s.get('section','')}** — {s.get('title','')}"
             )
+
+    return True
+
+
+# ──────────────────────────────────────────
+# 프롬프트 4 확정 내용 카드 (탭6·7에서 사용)
+# ──────────────────────────────────────────
+
+def render_p4_confirmed_card():
+    """
+    프롬프트 4에서 확정된 대본 요약을 카드로 표시한다.
+    """
+    confirmed  = st.session_state.get(P4_CONFIRMED, False)
+    full_script = st.session_state.get(P4_SCRIPT_FULL, "")
+
+    if not confirmed or not full_script:
+        st.warning("⚠️ 프롬프트 4(대본 작성)를 먼저 완료해주세요.")
+        return False
+
+    char_count = len(full_script)
+    with st.expander("📌 4단계 확정 내용 확인", expanded=True):
+        st.caption(f"전체 대본 확정 완료 · {char_count:,}자")
+        st.markdown(f"**글자 수:** {char_count:,}자")
+        preview = full_script[:300].replace("\n", " ")
+        st.markdown(f"**앞부분 미리보기:** {preview}...")
 
     return True
