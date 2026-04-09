@@ -505,6 +505,10 @@ def generate_txt() -> str:
 # ──────────────────────────────────────────
 
 def render_upload_tab():
+    if not st.session_state.get("p4_confirmed"):
+        st.info("📝 탭5에서 대본을 먼저 완성하고 확정해주세요.")
+        st.stop()
+
     render_pipeline_status()
 
     st.header("📦 업로드 패키지")

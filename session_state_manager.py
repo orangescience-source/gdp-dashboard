@@ -49,6 +49,65 @@ P5_RESULT_SCENES = "p5_result_scenes"  # 파싱된 씬 리스트 [{"num":1,"kore
 P5_LAST_NUM      = "p5_last_num"       # 마지막으로 생성한 씬 수
 P5_GENERATING    = "p5_generating"     # 생성 중 여부 (bool)
 
+# ──────────────────────────────────────────
+# 전체 파이프라인 기본값 정의
+# ──────────────────────────────────────────
+
+_DEFAULTS: dict = {
+    # P1
+    P1_CHANNEL:       "",
+    P1_BENCHMARK:     "",
+    P1_RESULT:        None,
+    P1_TOPIC_RANK:    0,
+    P1_TOPIC_TITLE:   "",
+    P1_CORE_MESSAGE:  "",
+    P1_EMOTION:       "",
+    P1_HOOK:          "",
+    # P2
+    P2_RESULT:        None,
+    P2_TITLE:         "",
+    P2_THUMBNAIL:     "",
+    P2_HOOK_30SEC:    "",
+    P2_IMAGE_PROMPT:  "",
+    # P3
+    P3_RESULT:        None,
+    P3_STRUCTURE:     [],
+    P3_EMOTION_MAP:   [],
+    P3_MINI_HOOKS:    [],
+    P3_SCENE_META:    [],
+    # P4
+    P4_RESULT:        None,
+    P4_SCRIPT_FRONT:  "",
+    P4_SCRIPT_BACK:   "",
+    P4_SCRIPT_FULL:   "",
+    P4_VIZ_MEMO:      "",
+    P4_CONFIRMED:     False,
+    # P5
+    P5_RESULT_RAW:    "",
+    P5_RESULT_SCENES: [],
+    P5_LAST_NUM:      1,
+    P5_GENERATING:    False,
+    # P6
+    P6_RESULT:        None,
+    P6_FINAL_TITLE:   "",
+    P6_DESCRIPTION:   "",
+    P6_HASHTAGS:      [],
+    P6_CONFIRMED:     False,
+}
+
+
+def init_session_state() -> None:
+    """앱 첫 로드 시 모든 파이프라인 키를 기본값으로 초기화한다 (이미 존재하는 키는 건드리지 않는다)."""
+    for key, default in _DEFAULTS.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
+
+
+def reset_pipeline() -> None:
+    """파이프라인 전체를 초기 상태로 되돌린다 (API 키는 유지)."""
+    for key, default in _DEFAULTS.items():
+        st.session_state[key] = default
+
 
 # ──────────────────────────────────────────
 # 현재 기획 진행 상태 표시 컴포넌트

@@ -302,6 +302,10 @@ def export_p2_excel(result: dict, channel_name: str, topic_title: str) -> bytes:
 # ──────────────────────────────────────────
 
 def render_thumbnail_tab():
+    if not st.session_state.get("p1_topic_title"):
+        st.info("📊 탭2에서 주제를 먼저 확정해주세요.")
+        st.stop()
+
     # 진행 상태 바
     render_pipeline_status()
 

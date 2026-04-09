@@ -296,6 +296,10 @@ def _render_result_tabs(front: str, back: str):
 # ──────────────────────────────────────────
 
 def render_script_tab():
+    if not st.session_state.get("p3_structure"):
+        st.info("📐 탭4에서 대본 구조를 먼저 확정해주세요.")
+        st.stop()
+
     render_pipeline_status()
 
     st.header("📝 대본 작성")

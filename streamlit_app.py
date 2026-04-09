@@ -16,12 +16,15 @@ from tab_structure import render_structure_tab
 from tab_script import render_script_tab
 from tab_upload import render_upload_tab
 from tab_visualization import render_visualization_tab
+from session_state_manager import init_session_state, reset_pipeline
 
 st.set_page_config(
     page_title="YouTube 니치 발굴 대시보드",
     page_icon="🎬",
     layout="wide",
 )
+
+init_session_state()
 
 # ── API Key 처리 ──────────────────────────────────────────────────────────────
 
@@ -398,6 +401,35 @@ with st.sidebar:
         "- 트렌드: 높을수록 성장 중 (1-10)\n"
         "- 기회 점수: 세 지표 종합 (1-10)"
     )
+
+    st.divider()
+    st.markdown("### 📋 진행 현황")
+
+    p1_done = bool(st.session_state.get("p1_topic_title"))
+    p2_done = bool(st.session_state.get("p2_title"))
+    p3_done = bool(st.session_state.get("p3_structure"))
+    p4_done = bool(st.session_state.get("p4_confirmed"))
+    p6_done = bool(st.session_state.get("p6_confirmed"))
+
+    steps = [
+        ("주제 발굴",     p1_done),
+        ("썸네일·제목",   p2_done),
+        ("대본 구조",     p3_done),
+        ("대본 작성",     p4_done),
+        ("업로드 패키지", p6_done),
+    ]
+    for name, done in steps:
+        icon = "✅" if done else "⬜"
+        st.markdown(f"{icon} {name}")
+
+    done_count = sum(1 for _, d in steps if d)
+    st.progress(done_count / len(steps))
+    st.caption(f"{done_count}/{len(steps)} 단계 완료")
+
+    st.divider()
+    if st.button("🔄 처음부터 다시 시작", use_container_width=True):
+        reset_pipeline()
+        st.rerun()
 
 # ── 탭 1: 니치 발굴 ──────────────────────────────────────────────────────────
 

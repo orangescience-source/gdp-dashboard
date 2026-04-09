@@ -373,6 +373,10 @@ def render_mini_hooks(mini_hooks: list):
 # ──────────────────────────────────────────
 
 def render_structure_tab():
+    if not st.session_state.get("p2_title"):
+        st.info("🎨 탭3에서 썸네일·제목을 먼저 확정해주세요.")
+        st.stop()
+
     render_pipeline_status()
 
     st.header("📐 대본 구조 설계")
