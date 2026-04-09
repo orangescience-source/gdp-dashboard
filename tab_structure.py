@@ -386,11 +386,11 @@ def render_structure_tab():
     )
 
     # ── 1·2단계 확정 내용 확인 ──
-    p1_ready = render_p1_confirmed_card(editable=True)
+    p1_ready = render_p1_confirmed_card(editable=True, key_suffix="_tab4")
     if not p1_ready:
         return
 
-    p2_ready = render_p2_confirmed_card(editable=True)
+    p2_ready = render_p2_confirmed_card(editable=True, key_suffix="_tab4")
     if not p2_ready:
         return
 

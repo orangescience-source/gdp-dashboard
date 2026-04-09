@@ -172,11 +172,11 @@ def render_pipeline_status():
 # 프롬프트 1 확정 내용 카드 (프롬프트 2, 3, 4에서 공통 사용)
 # ──────────────────────────────────────────
 
-def render_p1_confirmed_card(editable=False):
+def render_p1_confirmed_card(editable=False, key_suffix=""):
     """
     프롬프트 1에서 확정된 내용을 카드 형태로 표시한다.
     editable=True 이면 각 항목을 직접 수정할 수 있다.
-    수정 내용은 즉시 session_state에 반영된다.
+    key_suffix: 동일 함수를 여러 탭에서 호출 시 위젯 key 충돌 방지용 접미사.
     """
     channel = st.session_state.get(P1_CHANNEL, "")
     topic   = st.session_state.get(P1_TOPIC_TITLE, "")
@@ -199,27 +199,27 @@ def render_p1_confirmed_card(editable=False):
             new_topic = st.text_input(
                 "확정 주제명",
                 value=topic,
-                key="edit_p1_topic",
+                key=f"edit_p1_topic{key_suffix}",
             )
             new_message = st.text_area(
                 "핵심 메시지",
                 value=message,
                 height=70,
-                key="edit_p1_message",
+                key=f"edit_p1_message{key_suffix}",
             )
             new_emotion = st.text_input(
                 "타겟 감정",
                 value=emotion,
-                key="edit_p1_emotion",
+                key=f"edit_p1_emotion{key_suffix}",
             )
             new_hook = st.text_area(
                 "Hook 문장",
                 value=hook,
                 height=70,
-                key="edit_p1_hook",
+                key=f"edit_p1_hook{key_suffix}",
             )
 
-            if st.button("✅ 수정 내용 확정", key="confirm_p1_edit", type="primary"):
+            if st.button("✅ 수정 내용 확정", key=f"confirm_p1_edit{key_suffix}", type="primary"):
                 st.session_state[P1_TOPIC_TITLE]  = new_topic
                 st.session_state[P1_CORE_MESSAGE] = new_message
                 st.session_state[P1_EMOTION]      = new_emotion
@@ -239,9 +239,10 @@ def render_p1_confirmed_card(editable=False):
 # 프롬프트 2 확정 내용 카드 (프롬프트 3, 4에서 사용)
 # ──────────────────────────────────────────
 
-def render_p2_confirmed_card(editable=False):
+def render_p2_confirmed_card(editable=False, key_suffix=""):
     """
     프롬프트 2에서 확정된 썸네일 문구와 제목을 카드로 표시한다.
+    key_suffix: 동일 함수를 여러 탭에서 호출 시 위젯 key 충돌 방지용 접미사.
     """
     thumbnail = st.session_state.get(P2_THUMBNAIL, "")
     title     = st.session_state.get(P2_TITLE, "")
@@ -258,22 +259,22 @@ def render_p2_confirmed_card(editable=False):
             new_title = st.text_input(
                 "확정 제목",
                 value=title,
-                key="edit_p2_title",
+                key=f"edit_p2_title{key_suffix}",
             )
             new_thumbnail = st.text_area(
                 "확정 썸네일 문구",
                 value=thumbnail,
                 height=80,
-                key="edit_p2_thumbnail",
+                key=f"edit_p2_thumbnail{key_suffix}",
             )
             new_hook = st.text_area(
                 "초반 30초 Hook 전략",
                 value=hook_30,
                 height=80,
-                key="edit_p2_hook",
+                key=f"edit_p2_hook{key_suffix}",
             )
 
-            if st.button("✅ 수정 내용 확정", key="confirm_p2_edit", type="primary"):
+            if st.button("✅ 수정 내용 확정", key=f"confirm_p2_edit{key_suffix}", type="primary"):
                 st.session_state[P2_TITLE]      = new_title
                 st.session_state[P2_THUMBNAIL]  = new_thumbnail
                 st.session_state[P2_HOOK_30SEC] = new_hook

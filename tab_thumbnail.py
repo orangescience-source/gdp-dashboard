@@ -313,7 +313,7 @@ def render_thumbnail_tab():
     st.caption("프롬프트 1에서 선택한 주제를 바탕으로 CTR 5% 이상을 목표로 하는 썸네일 문구와 제목을 확정합니다.")
 
     # ── 1단계 확정 내용 확인 및 편집 ──
-    p1_ready = render_p1_confirmed_card(editable=True)
+    p1_ready = render_p1_confirmed_card(editable=True, key_suffix="_tab3")
     if not p1_ready:
         return
 
