@@ -36,6 +36,13 @@ P4_SCRIPT_FULL   = "p4_script_full"    # 앞+뒤 합친 전체 대본
 P4_VIZ_MEMO      = "p4_viz_memo"       # 시각화 연동 메모 (## [시각화 연동 메모] 이하)
 P4_CONFIRMED     = "p4_confirmed"      # 확정 여부 (bool)
 
+# 프롬프트 6: 업로드 패키지 결과
+P6_RESULT        = "p6_result"         # Claude API 전체 응답 dict
+P6_FINAL_TITLE   = "p6_final_title"    # SEO 최적화 최종 제목
+P6_DESCRIPTION   = "p6_description"    # 유튜브 설명란
+P6_HASHTAGS      = "p6_hashtags"       # 해시태그 목록 (list)
+P6_CONFIRMED     = "p6_confirmed"      # 확정 여부 (bool)
+
 
 # ──────────────────────────────────────────
 # 현재 기획 진행 상태 표시 컴포넌트
@@ -50,6 +57,7 @@ def render_pipeline_status():
     p2_done = bool(st.session_state.get(P2_TITLE))
     p3_done = bool(st.session_state.get(P3_RESULT))
     p4_done = bool(st.session_state.get(P4_CONFIRMED))
+    p6_done = bool(st.session_state.get(P6_CONFIRMED))
 
     def step_badge(label, done, active=False):
         if done:
@@ -69,6 +77,7 @@ def render_pipeline_status():
     p2_active = p1_done and not p2_done
     p3_active = p2_done and not p3_done
     p4_active = p3_done and not p4_done
+    p6_active = p4_done and not p6_done
 
     st.markdown(
         f"""
@@ -86,6 +95,8 @@ def render_pipeline_status():
             {step_badge("3. 대본 구조", p3_done, p3_active)}
             <span style="color:#ccc; margin:0 4px;">→</span>
             {step_badge("4. 대본 작성", p4_done, p4_active)}
+            <span style="color:#ccc; margin:0 4px;">→</span>
+            {step_badge("5. 업로드 패키지", p6_done, p6_active)}
         </div>
         """,
         unsafe_allow_html=True,
@@ -258,5 +269,30 @@ def render_p4_confirmed_card():
         st.markdown(f"**글자 수:** {char_count:,}자")
         preview = full_script[:300].replace("\n", " ")
         st.markdown(f"**앞부분 미리보기:** {preview}...")
+
+    return True
+
+
+# ──────────────────────────────────────────
+# 프롬프트 6 확정 내용 카드 (향후 탭에서 사용)
+# ──────────────────────────────────────────
+
+def render_p6_confirmed_card():
+    """
+    탭6에서 확정된 업로드 패키지 요약을 카드로 표시한다.
+    """
+    confirmed   = st.session_state.get(P6_CONFIRMED, False)
+    final_title = st.session_state.get(P6_FINAL_TITLE, "")
+
+    if not confirmed or not final_title:
+        st.warning("⚠️ 탭6(업로드 패키지)를 먼저 완료해주세요.")
+        return False
+
+    hashtags = st.session_state.get(P6_HASHTAGS, [])
+    with st.expander("📌 5단계 업로드 패키지 확인", expanded=True):
+        st.caption(f"업로드 패키지 확정 완료 · 해시태그 {len(hashtags)}개")
+        st.markdown(f"**최종 제목:** {final_title}")
+        if hashtags:
+            st.markdown(f"**해시태그:** {' '.join(hashtags[:5])} ...")
 
     return True
