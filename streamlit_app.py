@@ -12,6 +12,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from tab_topic import render_topic_tab
 from tab_thumbnail import render_thumbnail_tab
+from tab_structure import render_structure_tab
 
 st.set_page_config(
     page_title="YouTube 니치 발굴 대시보드",
@@ -355,7 +356,7 @@ st.markdown("""
 st.title("🎬 YouTube 채널 전략 도구")
 st.caption("Claude AI가 분석하는 유튜브 채널 전략 플랫폼")
 
-tab1, tab2, tab3 = st.tabs(["🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목", "📐 대본 구조"])
 
 # ── 사이드바 (니치 발굴 탭용) ─────────────────────────────────────────────────
 
@@ -563,3 +564,8 @@ with tab2:
 
 with tab3:
     render_thumbnail_tab()
+
+# ── 탭 4: 대본 구조 설계 ──────────────────────────────────────────────────────
+
+with tab4:
+    render_structure_tab()

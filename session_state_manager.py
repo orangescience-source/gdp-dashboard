@@ -21,8 +21,12 @@ P2_TITLE         = "p2_title"          # 확정된 제목
 P2_HOOK_30SEC    = "p2_hook_30sec"     # 확정된 초반 30초 Hook
 P2_IMAGE_PROMPT  = "p2_image_prompt"   # 선택한 이미지 프롬프트
 
-# 프롬프트 3: 대본 구조 설계 결과 (향후 추가)
-P3_RESULT        = "p3_result"
+# 프롬프트 3: 대본 구조 설계 결과
+P3_RESULT        = "p3_result"         # Claude API 전체 응답 dict
+P3_STRUCTURE     = "p3_structure"      # 확정된 8단계 구조 리스트
+P3_EMOTION_MAP   = "p3_emotion_map"    # 확정된 감정 지도 리스트
+P3_MINI_HOOKS    = "p3_mini_hooks"     # 확정된 미니훅 4개 리스트
+P3_SCENE_META    = "p3_scene_meta"     # 확정된 장면 설계 메타 리스트
 
 # 프롬프트 4: 대본 작성 결과 (향후 추가)
 P4_RESULT        = "p4_result"
@@ -198,5 +202,31 @@ def render_p2_confirmed_card(editable=False):
             st.markdown(f"**썸네일 문구:** {thumbnail}")
             if hook_30:
                 st.info(f"🎬 초반 30초: {hook_30}")
+
+    return True
+
+
+# ──────────────────────────────────────────
+# 프롬프트 3 확정 내용 카드 (프롬프트 4에서 사용)
+# ──────────────────────────────────────────
+
+def render_p3_confirmed_card(editable=False):
+    """
+    프롬프트 3에서 확정된 대본 구조 요약을 카드로 표시한다.
+    """
+    structure = st.session_state.get(P3_STRUCTURE, [])
+    emotion_map = st.session_state.get(P3_EMOTION_MAP, [])
+    mini_hooks = st.session_state.get(P3_MINI_HOOKS, [])
+
+    if not structure:
+        st.warning("⚠️ 프롬프트 3(대본 구조)를 먼저 완료해주세요.")
+        return False
+
+    with st.expander("📌 3단계 확정 내용 확인", expanded=True):
+        st.caption(f"8단계 구조 · 감정 지도 {len(emotion_map)}개 · 미니훅 {len(mini_hooks)}개")
+        for s in structure:
+            st.markdown(
+                f"**[{s.get('timestamp_start','')}] {s.get('section','')}** — {s.get('title','')}"
+            )
 
     return True
