@@ -552,3 +552,148 @@ PROMPT_6_SYSTEM = """
   ]
 }}
 """
+
+# ──────────────────────────────────────────────────────────────────
+# 채널별 시각화 무드 정보 (탭7 이미지 프롬프트 생성용)
+# ──────────────────────────────────────────────────────────────────
+
+CHANNEL_VISUAL_MOOD = {
+    "거침없는 경제학": {
+        "character": "Tae-oh — 레드 복면, 블랙 슈트",
+        "tone": "독설가 (공격적 팩트 폭격)",
+        "mood": "공포, 분노, 붉은 경고, 날카로운 수치 충돌",
+        "scene_style": "강렬한 붉은 배경, 폭락 그래프, 분노한 표정, 경고 사인",
+        "bg_color_accent": "#FF6B6B / #1A1A1A",
+    },
+    "머니매커니즘": {
+        "character": "Gear Yoon — 금테 안경, 에메랄드 눈빛",
+        "tone": "설계자 (냉철한 시스템 분석)",
+        "mood": "시스템 구조, 톱니바퀴, 자본 흐름의 설계도",
+        "scene_style": "투명한 기계 구조, 톱니바퀴 오버레이, 에메랄드-금색 배경",
+        "bg_color_accent": "#5BC8A0 / #FFE97A",
+    },
+    "친절한 경제학자": {
+        "character": "Saito — 단정하게 넘긴 흑발, 세련된 뿔테",
+        "tone": "현대적 멘토 (지식 큐레이터)",
+        "mood": "글로벌 그래프, 세련된 디지털 분석 공간",
+        "scene_style": "파란 세계지도, 상승 그래프, 태블릿, 모던 오피스",
+        "bg_color_accent": "#2C3E50 / #F1C40F",
+    },
+    "남몰래 경제학": {
+        "character": "Shadow — 보라 복면, 거대 돋보기",
+        "tone": "정보원 (은밀한 폭로)",
+        "mood": "미스터리, 은밀한 폭로, 숨겨진 진실 추적",
+        "scene_style": "어두운 배경, 돋보기 강조, 보라빛 안개, 비밀 서류",
+        "bg_color_accent": "#9B72CF / #E0E0E0",
+    },
+    "사이언스로그": {
+        "character": "Log — 블루 바이저, 하이테크 슈트",
+        "tone": "기록관 (논리적 데이터 분석)",
+        "mood": "차가운 데이터, 실험실, 홀로그램 분석",
+        "scene_style": "사이버 공간, 파란 홀로그램 데이터, 차가운 실험실",
+        "bg_color_accent": "#7DD8F5 / #F0FBFF",
+    },
+    "사이언스툰": {
+        "character": "Nutty — 대형 고글, 익살스러운 표정",
+        "tone": "발명가 (유쾌한 발견)",
+        "mood": "팝아트, 유쾌한 과장, 빠른 에너지",
+        "scene_style": "팝아트 스피드라인, 튀어오르는 액체, 밝은 실험실",
+        "bg_color_accent": "#85D98A / #FFFDE7",
+    },
+    "미래인사이트": {
+        "character": "Future — 사이버네틱 안구, 네온 재킷",
+        "tone": "선구자 (미래 예측)",
+        "mood": "사이버펑크, 예측, 미래 경고",
+        "scene_style": "사이버펑크 도시, 네온 홀로그램, 미래 타임라인",
+        "bg_color_accent": "#9B8FC8 / #E8F4FD",
+    },
+    "히스토리프로파일러": {
+        "character": "Lupus — 브라운 페도라, 트렌치코트",
+        "tone": "탐정 (노아르풍 수사)",
+        "mood": "세피아, 단서 보드, 역사 추적",
+        "scene_style": "세피아 톤, 코르크 단서 보드, 붉은 실 연결, 고지도",
+        "bg_color_accent": "#C4A882 / #FDF5E6",
+    },
+    "친절한 심리학자": {
+        "character": "Psy — 깔끔한 민트 맨투맨, 반무테 안경",
+        "tone": "마음 설계자 (명쾌한 심리 분석)",
+        "mood": "감정 해석, 심리 프리즘, 깨끗한 상담형 공간",
+        "scene_style": "민트 상담실, 프리즘 분해 감정, 따뜻한 조명",
+        "bg_color_accent": "#3EB489 / #E2725B",
+    },
+    "거리의 경제학": {
+        "character": "Hyeonjang — 오렌지 비니, 장바구니",
+        "tone": "활동가 (생생한 민생 현장)",
+        "mood": "시장 현장, 영수증, 생계감 있는 실제 공간",
+        "scene_style": "전통시장, 색색의 물건들, 영수증 클로즈업, 활기찬 현장",
+        "bg_color_accent": "#F5A55A / #FFF3E0",
+    },
+    "친절한 공학자": {
+        "character": "Engi — 흰색 안전모, 푸른 작업복",
+        "tone": "설계자 (실용적 해결사)",
+        "mood": "도면, 작동 구조, 정교한 기계 설명",
+        "scene_style": "청사진 도면, 3D 분해도, 안전모 캐릭터, 기계 부품",
+        "bg_color_accent": "#4A90E2 / #FF9F43",
+    },
+    "친절한 과학자": {
+        "character": "Scien — 단정한 갈색 머리, 둥근 안경",
+        "tone": "관찰자 (따뜻한 호기심)",
+        "mood": "따뜻한 연구실, 비커, 생활 과학",
+        "scene_style": "초록 연구실, 비커와 원자 기호, 따뜻한 조명, 일상 소품",
+        "bg_color_accent": "#50C878 / #FDFD96",
+    },
+    "친절한 사회학자": {
+        "character": "Socio — 둥근 안경, 브라운 가디건",
+        "tone": "관찰자 (인간적인 통찰)",
+        "mood": "관계망, 사회 구조, 사람 사이의 거리와 연결",
+        "scene_style": "베이지 배경, 인물 네트워크 그래프, 연결선, 공동체 공간",
+        "bg_color_accent": "#D2B48C / #4E342E",
+    },
+}
+
+
+def build_p5_system_prompt(channel_name: str) -> str:
+    """채널명을 받아 해당 채널 페르소나를 완전히 주입한 시각화 시스템 프롬프트를 반환한다."""
+    mood = CHANNEL_VISUAL_MOOD.get(channel_name, {})
+    character   = mood.get("character", "채널 캐릭터")
+    tone        = mood.get("tone", "채널 톤")
+    scene_style = mood.get("scene_style", "채널 씬 스타일")
+    bg_accent   = mood.get("bg_color_accent", "#FFFFFF / #000000")
+    visual_mood = mood.get("mood", "채널 무드")
+
+    return f"""[SYSTEM ROLE]
+당신은 유튜브 영상의 각 장면(Scene)에 맞는 이미지 생성 프롬프트 전문가입니다.
+채널 페르소나와 시각적 아이덴티티를 완벽히 반영한 영어 이미지 프롬프트를 생성합니다.
+
+[채널 페르소나]
+- 채널명: {channel_name}
+- 캐릭터: {character}
+- 톤: {tone}
+- 시각 무드: {visual_mood}
+- 씬 스타일: {scene_style}
+- 배경/강조색: {bg_accent}
+
+[이미지 프롬프트 생성 규칙]
+
+A. 채널 브랜딩 — 캐릭터는 항상 화면 왼쪽 상단 또는 왼쪽에 배치한다.
+B. 하단 중앙 텍스트 금지 — 이미지 하단 가운데 영역에 텍스트/자막/레이블을 넣지 않는다.
+C. 한국어 텍스트 우선 — 숫자·통계·제목 등 텍스트 오버레이는 한국어로 표기한다.
+D. 숫자 변환 — 본문의 백만/억 단위 숫자는 "1,200만", "3.5억" 식으로 한국식 단위로 변환한다.
+E. 컬러 규칙 — 배경색과 강조색({bg_accent})을 반드시 사용한다.
+F. 스틱맨 3두신 — 사람 형태가 필요할 때 3-head-tall stickman 스타일로 표현한다.
+G. DATA_SKETCH_SCENE 자동 감지 — 대본에 수치·통계·비교가 있으면 자동으로 데이터 스케치 씬 스타일을 적용한다.
+H. 실제 인물 얼굴 금지 — 실존 인물의 얼굴을 직접 묘사하지 않는다.
+
+[출력 형식 — 반드시 이 형식을 지킨다]
+각 장면마다 아래 3줄 형식으로 출력한다:
+
+번호
+[한국어 번역] 이 장면의 한국어 설명 (30자 이내)
+[영어 이미지 프롬프트] Detailed English image generation prompt for this scene, incorporating channel visual identity, character placement top-left, color palette {bg_accent}, scene style: {scene_style}. No text at bottom-center. 3-head stickman if human needed. Cinematic composition.
+
+[추가 규칙]
+- 번호는 입력된 장면 번호를 그대로 사용한다 (1부터 시작)
+- 각 프롬프트는 최소 40단어 이상의 영어로 작성한다
+- 씬의 감정·분위기·핵심 메시지가 이미지에 담기도록 구체적으로 묘사한다
+- 같은 채널 무드를 유지하되, 각 장면의 내용에 따라 구도·소품·표정을 변화시킨다
+"""

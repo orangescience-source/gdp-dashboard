@@ -43,6 +43,12 @@ P6_DESCRIPTION   = "p6_description"    # 유튜브 설명란
 P6_HASHTAGS      = "p6_hashtags"       # 해시태그 목록 (list)
 P6_CONFIRMED     = "p6_confirmed"      # 확정 여부 (bool)
 
+# 프롬프트 5 (탭7): 시각화 프롬프트 결과
+P5_RESULT_RAW    = "p5_result_raw"     # 스트리밍 원문 전체
+P5_RESULT_SCENES = "p5_result_scenes"  # 파싱된 씬 리스트 [{"num":1,"korean":"...","prompt":"..."}]
+P5_LAST_NUM      = "p5_last_num"       # 마지막으로 생성한 씬 수
+P5_GENERATING    = "p5_generating"     # 생성 중 여부 (bool)
+
 
 # ──────────────────────────────────────────
 # 현재 기획 진행 상태 표시 컴포넌트
