@@ -105,13 +105,17 @@ def _stream_visualization(
     scene_text: str,
     num_scenes: int,
     placeholder,
+    image_purpose: str = "본문 삽입 이미지",
 ) -> str:
     """
     Claude API 스트리밍으로 이미지 프롬프트를 생성하고
     placeholder에 실시간으로 출력한다.
     생성 완료 후 전체 텍스트를 반환한다.
     """
-    system_prompt = build_p5_system_prompt(channel_name)
+    system_prompt = build_p5_system_prompt(
+        channel_name=channel_name,
+        image_purpose=image_purpose,
+    )
 
     user_message = f"""아래 {num_scenes}개의 씬에 대해 이미지 생성 프롬프트를 만들어주세요.
 
@@ -224,12 +228,21 @@ def render_visualization_tab():
 
     st.markdown(f"**선택된 채널:** {channel_name}")
 
-    input_mode = st.radio(
-        "씬 입력 방식",
-        ["📝 대본에서 자동 추출", "✏️ 직접 씬 목록 입력"],
-        horizontal=True,
-        key="p5_input_mode",
-    )
+    col_purpose, col_mode = st.columns([1, 2])
+    with col_purpose:
+        image_purpose = st.selectbox(
+            "🎯 이미지 목적",
+            ["본문 삽입 이미지", "썸네일"],
+            key="p5_image_purpose",
+            help="본문 삽입: 하단 텍스트 금지 / 썸네일: 하단 2줄 레이아웃 허용",
+        )
+    with col_mode:
+        input_mode = st.radio(
+            "씬 입력 방식",
+            ["📝 대본에서 자동 추출", "✏️ 직접 씬 목록 입력"],
+            horizontal=True,
+            key="p5_input_mode",
+        )
 
     num_scenes = st.slider(
         "생성할 씬 수",
@@ -295,6 +308,7 @@ def render_visualization_tab():
                 scene_text=scene_text,
                 num_scenes=num_scenes,
                 placeholder=stream_placeholder,
+                image_purpose=image_purpose,
             )
             scenes = _parse_scenes(raw_text)
             st.session_state[P5_RESULT_RAW]    = raw_text
