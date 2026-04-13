@@ -678,7 +678,9 @@ def render_thumbnail_tab():
             use_container_width=True,
         )
     with ec2:
-        hook_confirmed = st.session_state.get(P2_HOOK_30SEC, "")
+        title_confirmed = st.session_state.get(P2_TITLE, "")
+        thumb_confirmed = st.session_state.get(P2_THUMBNAIL, "")
+        hook_confirmed  = st.session_state.get(P2_HOOK_30SEC, "")
         summary = (
             f"채널,{channel_name}\n"
             f"주제,{topic_title}\n"
