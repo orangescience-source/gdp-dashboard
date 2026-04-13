@@ -14,6 +14,11 @@ from session_state_manager import (
     P1_CHANNEL, P1_BENCHMARK, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
     render_pipeline_status,
 )
+from youtube_researcher import (
+    search_trending_videos,
+    format_view_count,
+    SEARCH_CRITERIA,
+)
 
 CHANNEL_NAMES = list(CHANNEL_DB.keys())
 
@@ -528,29 +533,147 @@ def render_topic_tab():
     st.header("📊 트렌드 기반 주제 발굴 & 경쟁 분석기")
     st.caption("Claude AI가 채널 페르소나에 맞게 차별화 주제 5가지를 도출합니다.")
 
+    # ── 채널 선택 (전체 너비) ─────────────────────────────────────────────────
+    channel_options = ["직접 입력"] + CHANNEL_NAMES
+    channel_select = st.selectbox(
+        "채널 선택",
+        channel_options,
+        key="p1_channel_select",
+        help="13개 채널 중 선택하거나 직접 입력하세요.",
+    )
+    if channel_select == "직접 입력":
+        channel_name = st.text_input("채널명 직접 입력", key="p1_channel_custom")
+    else:
+        channel_name = channel_select
+    # 항상 session_state에 저장 (직접 입력 포함)
+    if channel_name:
+        st.session_state[P1_CHANNEL] = channel_name
+
+    if channel_name and channel_name in CHANNEL_DB:
+        render_persona_card(channel_name)
+
+    # ── 원터치 벤치마킹 주제 발굴 ────────────────────────────────────────────
+    st.divider()
+    st.subheader("🎯 원터치 벤치마킹 주제 발굴")
+    st.caption(
+        f"선택한 채널 페르소나에 맞는 "
+        f"최근 {SEARCH_CRITERIA['period_days']}일 내 "
+        f"인기 영상을 자동으로 검색합니다. "
+        f"(최소 조회수 "
+        f"{format_view_count(SEARCH_CRITERIA['min_views'])} 이상)"
+    )
+
+    col_btn1, col_btn2 = st.columns([2, 1])
+
+    with col_btn2:
+        max_topics = st.selectbox(
+            "발굴 개수",
+            options=[3, 5, 10],
+            index=1,
+            key="yt_max_topics"
+        )
+
+    with col_btn1:
+        yt_search_btn = st.button(
+            "🔍 YouTube 인기 영상 자동 발굴",
+            type="primary",
+            use_container_width=True,
+            disabled=not st.session_state.get(
+                "p1_channel", ""
+            ),
+            key="yt_search_btn"
+        )
+
+    # YouTube API 키 미설정 안내
+    if "YOUTUBE_API_KEY" not in st.secrets:
+        st.warning(
+            "⚠️ YouTube API 키가 설정되지 않았습니다. "
+            "Streamlit secrets에 YOUTUBE_API_KEY 를 추가해주세요."
+        )
+
+    # 발굴 버튼 클릭 처리
+    if yt_search_btn:
+        channel = st.session_state.get("p1_channel", "")
+        with st.spinner(
+            f"🔍 {channel} 채널에 맞는 인기 영상을 검색 중..."
+        ):
+            videos = search_trending_videos(
+                channel_name=channel,
+                max_topics=max_topics
+            )
+
+        if not videos:
+            st.error(
+                "검색 결과가 없습니다. "
+                "잠시 후 다시 시도하거나 YouTube API 키를 확인해주세요."
+            )
+        else:
+            st.session_state["yt_search_results"] = videos
+            st.success(
+                f"✅ {len(videos)}개 인기 영상 발굴 완료!"
+            )
+
+    # 검색 결과 표시
+    videos = st.session_state.get("yt_search_results", [])
+    if videos:
+        st.markdown("#### 📊 발굴된 벤치마킹 후보")
+        st.caption(
+            "아래 영상을 클릭하면 벤치마킹 대상으로 자동 입력됩니다."
+        )
+
+        for i, video in enumerate(videos):
+            with st.expander(
+                f"{'🥇' if i==0 else '🥈' if i==1 else '🥉' if i==2 else '📌'} "
+                f"{video['title'][:45]}... "
+                f"| {format_view_count(video['view_count'])}회",
+                expanded=(i == 0)
+            ):
+                col_a, col_b, col_c = st.columns(3)
+                col_a.metric(
+                    "총 조회수",
+                    format_view_count(video["view_count"])
+                )
+                col_b.metric(
+                    "일평균 조회수",
+                    format_view_count(video["daily_views"])
+                )
+                col_c.metric(
+                    "업로드 후",
+                    f"{video['days_since']}일"
+                )
+
+                st.markdown(
+                    f"**채널:** {video['channel']} | "
+                    f"**업로드:** {video['published_at']} | "
+                    f"**검색 키워드:** #{video['keyword']}"
+                )
+                st.markdown(
+                    f"🔗 [영상 바로가기]({video['url']})"
+                )
+
+                if st.button(
+                    "✅ 이 영상으로 벤치마킹 시작",
+                    key=f"select_video_{i}",
+                    use_container_width=True,
+                    type="secondary"
+                ):
+                    # 벤치마킹 입력창에 URL 자동 입력
+                    st.session_state["benchmark_input"]    = video["url"]
+                    st.session_state["benchmark_title"]    = video["title"]
+                    st.session_state["p1_benchmark_input"] = video["url"]
+                    st.success(
+                        f"✅ '{video['title'][:30]}...' 선택됨! "
+                        "아래 주제 발굴 섹션에서 생성 버튼을 눌러주세요."
+                    )
+                    st.rerun()
+
+    st.divider()
+
     col_in, col_out = st.columns([1, 2])
 
     # ── 입력 영역 ──────────────────────────────────────────────────────────────
     with col_in:
         st.subheader("⚙️ 입력 설정")
-
-        channel_options = ["직접 입력"] + CHANNEL_NAMES
-        channel_select = st.selectbox(
-            "채널 선택",
-            channel_options,
-            key="p1_channel_select",
-            help="13개 채널 중 선택하거나 직접 입력하세요.",
-        )
-        if channel_select == "직접 입력":
-            channel_name = st.text_input("채널명 직접 입력", key="p1_channel_custom")
-        else:
-            channel_name = channel_select
-        # 항상 session_state에 저장 (직접 입력 포함)
-        if channel_name:
-            st.session_state[P1_CHANNEL] = channel_name
-
-        if channel_name and channel_name in CHANNEL_DB:
-            render_persona_card(channel_name)
 
         benchmark_input = st.text_area(
             "벤치마킹 대상",

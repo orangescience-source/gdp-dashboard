@@ -93,6 +93,10 @@ _DEFAULTS: dict = {
     P6_DESCRIPTION:   "",
     P6_HASHTAGS:      [],
     P6_CONFIRMED:     False,
+    # YouTube 발굴
+    "yt_search_results": [],
+    "benchmark_input":   "",
+    "benchmark_title":   "",
 }
 
 
