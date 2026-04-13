@@ -69,6 +69,7 @@ _DEFAULTS: dict = {
     P2_THUMBNAIL:     "",
     P2_HOOK_30SEC:    "",
     P2_IMAGE_PROMPT:  "",
+    "p2_confirmed":   False,
     # P3
     P3_RESULT:        None,
     P3_STRUCTURE:     [],

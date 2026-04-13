@@ -373,9 +373,30 @@ def render_mini_hooks(mini_hooks: list):
 # ──────────────────────────────────────────
 
 def render_structure_tab():
-    if not st.session_state.get("p2_title"):
-        st.info("🎨 탭3에서 썸네일·제목을 먼저 확정해주세요.")
+    p2_confirmed = st.session_state.get("p2_confirmed", False)
+    p2_title = st.session_state.get("p2_title", "")
+
+    if not p2_title:
+        st.info(
+            "🎨 **탭3 (썸네일·제목)** 에서 "
+            "썸네일과 제목을 먼저 생성해주세요."
+        )
         st.stop()
+
+    if not p2_confirmed:
+        st.warning(
+            "⚠️ **탭3 (썸네일·제목)** 에서 "
+            "'✅ 제목·썸네일 확정 후 대본 구조 설계로 이동' "
+            "버튼을 눌러야 이 탭을 사용할 수 있습니다."
+        )
+        st.stop()
+
+    # 확정된 내용 상단 요약 배너
+    with st.container():
+        st.success(
+            f"✅ 확정된 제목: "
+            f"**{p2_title}**"
+        )
 
     render_pipeline_status()
 

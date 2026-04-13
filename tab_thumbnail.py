@@ -663,25 +663,6 @@ def render_thumbnail_tab():
 
     st.divider()
 
-    # ── 확정 내용 요약 + 다음 단계 안내 ──
-    thumb_confirmed = st.session_state.get(P2_THUMBNAIL, "")
-    title_confirmed = st.session_state.get(P2_TITLE, "")
-
-    if thumb_confirmed and title_confirmed:
-        st.success(
-            f"✅ **2단계 확정 완료!**\n\n"
-            f"📌 확정 제목: {title_confirmed}\n"
-            f"🖼️ 확정 썸네일:\n{thumb_confirmed}"
-        )
-        st.info("👉 다음 단계인 **'📐 대본 구조 설계'** 탭으로 이동하세요. (향후 추가 예정)")
-    else:
-        missing = []
-        if not thumb_confirmed:
-            missing.append("썸네일 문구")
-        if not title_confirmed:
-            missing.append("제목")
-        st.warning(f"⚠️ 아직 확정되지 않은 항목: {', '.join(missing)}")
-
     # ── 내보내기 ──
     st.divider()
     ec1, ec2 = st.columns(2)
@@ -711,4 +692,65 @@ def render_thumbnail_tab():
             file_name=f"확정내용_{channel_name}_{ts}.csv",
             mime="text/csv",
             use_container_width=True,
+        )
+
+    st.divider()
+    st.subheader("✅ 최종 확정 및 다음 단계")
+
+    # 현재 확정된 내용 요약 카드
+    if st.session_state.get("p2_title"):
+        st.success("아래 내용이 확정됩니다. 확인 후 확정 버튼을 눌러주세요.")
+
+        col_confirm1, col_confirm2 = st.columns(2)
+        with col_confirm1:
+            st.markdown("**📌 확정 제목**")
+            st.info(st.session_state.get("p2_title", ""))
+
+        with col_confirm2:
+            st.markdown("**🖼️ 확정 썸네일 문구**")
+            st.info(st.session_state.get("p2_thumbnail", ""))
+
+        if st.session_state.get("p2_hook_30sec"):
+            st.markdown("**🎬 초반 30초 훅**")
+            st.info(st.session_state.get("p2_hook_30sec", ""))
+
+    # 확정 버튼
+    col_btn1, col_btn2 = st.columns([2, 1])
+
+    with col_btn1:
+        if st.button(
+            "✅ 제목·썸네일 확정 후 대본 구조 설계로 이동 →",
+            type="primary",
+            use_container_width=True,
+            key="confirm_to_structure",
+            disabled=not bool(
+                st.session_state.get("p2_title")
+            )
+        ):
+            st.session_state["p2_confirmed"] = True
+            st.success(
+                "✅ 확정 완료! "
+                "상단 탭에서 '📐 대본 구조' 탭을 클릭하세요."
+            )
+            st.balloons()
+
+    with col_btn2:
+        if st.button(
+            "🔄 다시 생성",
+            type="secondary",
+            use_container_width=True,
+            key="regenerate_thumbnail"
+        ):
+            st.session_state["p2_result"] = None
+            st.session_state["p2_title"] = ""
+            st.session_state["p2_thumbnail"] = ""
+            st.session_state["p2_confirmed"] = False
+            st.rerun()
+
+    # 확정 완료 후 안내 배너
+    if st.session_state.get("p2_confirmed"):
+        st.info(
+            "✅ **확정 완료!** 지금 바로 "
+            "상단 탭에서 **📐 대본 구조** 탭을 클릭하세요.",
+            icon="👆"
         )
