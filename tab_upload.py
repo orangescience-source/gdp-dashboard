@@ -517,12 +517,6 @@ def render_upload_tab():
         "Excel 7시트 + TXT 파일로 내보냅니다."
     )
 
-    if not st.session_state.get(P4_CONFIRMED):
-        st.warning(
-            "⚠️ 탭5에서 대본을 먼저 확정해주세요.\n"
-            "탭5(📝 대본 작성) → '✅ 전체 대본 확정 저장' 버튼을 누른 후 돌아오세요."
-        )
-
     # ── 완성도 체크리스트 ──
     with st.expander("📋 완성도 체크리스트", expanded=True):
         _render_checklist()

@@ -65,7 +65,7 @@ def _extract_json(raw: str) -> dict:
         if escape:
             escape = False
             continue
-        if ch == "\\":
+        if ch == "\\" and in_string:
             escape = True
             continue
         if ch == '"':
@@ -151,6 +151,8 @@ def call_claude_prompt3(
                 messages=[{"role": "user", "content": user_message}],
             )
             last_raw = response.content[0].text
+            if not last_raw.strip():
+                raise json.JSONDecodeError("빈 응답 수신", "", 0)
             return _extract_json(last_raw)
 
         except json.JSONDecodeError as e:
@@ -182,7 +184,12 @@ def call_claude_prompt3(
 # UI 컴포넌트: 감정 강도 바
 # ──────────────────────────────────────────
 
-def _emotion_bar(intensity: int) -> str:
+def _emotion_bar(intensity) -> str:
+    try:
+        intensity = int(intensity)
+    except (TypeError, ValueError):
+        intensity = 5
+    intensity = max(0, min(10, intensity))  # 0~10 범위 클램핑
     filled = "█" * intensity
     empty = "░" * (10 - intensity)
     if intensity >= 8:
@@ -219,7 +226,10 @@ def render_structure_card(stage: dict, scene: dict | None = None):
     bg, accent = SECTION_COLORS.get(section, ("#f8f9fa", "#333"))
     ts_start = stage.get("timestamp_start", "")
     ts_end = stage.get("timestamp_end", "")
-    intensity = stage.get("emotion_intensity", 5)
+    try:
+        intensity = int(stage.get("emotion_intensity", 5))
+    except (TypeError, ValueError):
+        intensity = 5
 
     key_lines_html = "".join(
         f'<li style="margin-bottom:4px;">{line}</li>'
@@ -291,7 +301,10 @@ def render_emotion_map(emotion_map: list):
     st.caption("전체 영상의 감정 흐름 — 강도 변화가 시청 지속률을 결정합니다.")
 
     for em in emotion_map:
-        intensity = em.get("intensity", 5)
+        try:
+            intensity = int(em.get("intensity", 5))
+        except (TypeError, ValueError):
+            intensity = 5
         bar_width = intensity * 10
         if intensity >= 8:
             bar_color = "#e74c3c"
