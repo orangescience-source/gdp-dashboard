@@ -433,29 +433,8 @@ PROMPT_4_FRONT_SYSTEM = """
 복잡한 개념이나 전문 용어는 반드시 비유, 쉬운 사례, 또는 친숙한 시각적 오브젝트를 통해
 초등학생도 이해할 수 있는 친절한 설명으로 풀어낸다.
 
-[채널 페르소나]
-{persona_block}
-
-[확정된 영상 정보]
-채널명: {channel_name}
-확정 주제: {topic_title}
-핵심 메시지: {core_message}
-타겟 감정: {target_emotion}
-확정 제목: {video_title}
-확정 썸네일: {thumbnail_text}
-초반 30초 Hook: {hook_30sec}
-
-[확정된 대본 구조]
-{structure_text}
-
-[감정 지도 요약]
-{emotion_map_text}
-
-[미니훅 위치]
-{mini_hooks_text}
-
-[장면 메타]
-{scene_meta_text}
+[채널·영상 컨텍스트]
+(시스템 헤더의 채널 페르소나 및 영상 확정 정보를 참조)
 
 [앞부분 생성 범위: STAGE 1~4]
 STAGE 1 [00:00~01:30] HOOK
@@ -563,26 +542,8 @@ PROMPT_4_BACK_SYSTEM = """
 - 2~4문장마다 시각 정보 삽입: (화면: [장면 설명])
 - 감정 롤러코스터 유지: 클라이맥스 → 안도 → 행동 촉구
 
-[채널 페르소나]
-{persona_block}
-
-[확정된 영상 정보]
-채널명: {channel_name}
-확정 주제: {topic_title}
-확정 제목: {video_title}
-핵심 메시지: {core_message}
-
-[앞부분 대본 (참고용 — 마지막 200자)]
-{front_tail}
-
-[확정된 대본 구조 — 뒷부분]
-{back_structure_text}
-
-[미니훅 위치 — 뒷부분]
-{back_mini_hooks_text}
-
-[장면 메타 — 뒷부분]
-{back_scene_meta_text}
+[채널·영상 컨텍스트]
+(시스템 헤더의 채널 페르소나 및 영상 확정 정보를 참조)
 
 [뒷부분 생성 범위: STAGE 5~8]
 STAGE 5 [10:00~13:00] DEEP DIVE (미니훅 10:15 포함)

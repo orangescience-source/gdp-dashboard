@@ -171,20 +171,22 @@ def generate_front_script(
     front_hooks  = [h for h in mini_hooks if h.get("stage", 0) <= 4]
     front_scenes = [s for s in scene_meta  if s.get("stage", 0) <= 4]
 
-    system_prompt = PROMPT_4_FRONT_SYSTEM.format(
-        persona_block    = _build_persona_block(channel_name),
-        channel_name     = channel_name,
-        topic_title      = topic_title,
-        core_message     = core_message,
-        target_emotion   = target_emotion,
-        video_title      = video_title,
-        thumbnail_text   = thumbnail_text,
-        hook_30sec       = hook_30sec,
-        structure_text   = _structure_to_text(front_stages),
-        emotion_map_text = _emotion_map_to_text(emotion_map),
-        mini_hooks_text  = _mini_hooks_to_text(front_hooks),
-        scene_meta_text  = _scene_meta_to_text(front_scenes),
+    context_block = (
+        f"[채널 페르소나]\n{_build_persona_block(channel_name)}\n\n"
+        f"[확정된 영상 정보]\n"
+        f"채널명: {channel_name}\n"
+        f"확정 주제: {topic_title}\n"
+        f"핵심 메시지: {core_message}\n"
+        f"타겟 감정: {target_emotion}\n"
+        f"확정 제목: {video_title}\n"
+        f"확정 썸네일: {thumbnail_text}\n"
+        f"초반 30초 Hook: {hook_30sec}\n\n"
+        f"[확정된 대본 구조]\n{_structure_to_text(front_stages)}\n\n"
+        f"[감정 지도 요약]\n{_emotion_map_to_text(emotion_map)}\n\n"
+        f"[미니훅 위치]\n{_mini_hooks_to_text(front_hooks)}\n\n"
+        f"[장면 메타]\n{_scene_meta_to_text(front_scenes)}\n\n"
     )
+    system_prompt = context_block + PROMPT_4_FRONT_SYSTEM
     user_message = (
         f"채널: {channel_name} / 주제: {topic_title} / 제목: {video_title}\n"
         "앞부분(STAGE 1~4) 대본을 작성하라. 4,500자 이상."
@@ -210,20 +212,19 @@ def generate_back_script(
     # 앞부분 마지막 200자만 전달
     front_tail = front_script[-200:] if len(front_script) > 200 else front_script
 
-    system_prompt = PROMPT_4_BACK_SYSTEM.format(
-        persona_block        = _build_persona_block(channel_name),
-        channel_name         = channel_name,
-        topic_title          = topic_title,
-        core_message         = core_message,
-        target_emotion       = target_emotion,
-        video_title          = video_title,
-        thumbnail_text       = thumbnail_text,
-        hook_30sec           = hook_30sec,
-        front_tail           = front_tail,
-        back_structure_text  = _structure_to_text(back_stages),
-        back_mini_hooks_text = _mini_hooks_to_text(back_hooks),
-        back_scene_meta_text = _scene_meta_to_text(back_scenes),
+    context_block = (
+        f"[채널 페르소나]\n{_build_persona_block(channel_name)}\n\n"
+        f"[확정된 영상 정보]\n"
+        f"채널명: {channel_name}\n"
+        f"확정 주제: {topic_title}\n"
+        f"확정 제목: {video_title}\n"
+        f"핵심 메시지: {core_message}\n\n"
+        f"[앞부분 대본 (참고용 — 마지막 200자)]\n{front_tail}\n\n"
+        f"[확정된 대본 구조 — 뒷부분]\n{_structure_to_text(back_stages)}\n\n"
+        f"[미니훅 위치 — 뒷부분]\n{_mini_hooks_to_text(back_hooks)}\n\n"
+        f"[장면 메타 — 뒷부분]\n{_scene_meta_to_text(back_scenes)}\n\n"
     )
+    system_prompt = context_block + PROMPT_4_BACK_SYSTEM
     user_message = (
         f"채널: {channel_name} / 주제: {topic_title} / 제목: {video_title}\n"
         "뒷부분(STAGE 5~8) 대본을 작성하라. 4,500자 이상."
