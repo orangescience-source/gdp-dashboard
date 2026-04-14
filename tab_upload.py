@@ -506,7 +506,11 @@ def generate_txt() -> str:
 
 def render_upload_tab():
     if not st.session_state.get("p4_confirmed"):
-        st.info("📝 탭5에서 대본을 먼저 완성하고 확정해주세요.")
+        st.warning(
+            "⚠️ **탭5 (대본 작성)** 에서 "
+            "'대본 확정하고 업로드 패키지 단계로 →' "
+            "버튼을 눌러주세요."
+        )
         st.stop()
 
     render_pipeline_status()
@@ -571,8 +575,8 @@ def render_upload_tab():
 
     st.divider()
 
-    # ── 결과 표시 ──
-    final_title, description, edited_hashtags = _render_result(result)
+    with st.expander("📦 업로드 패키지 결과 보기 (클릭하여 펼치기)", expanded=False):
+        final_title, description, edited_hashtags = _render_result(result)
 
     st.divider()
 
@@ -597,20 +601,39 @@ def render_upload_tab():
 
     st.divider()
 
-    # ── 내보내기 ──
-    st.subheader("📥 내보내기")
+    # ── 전체 다운로드 ──
+    st.subheader("📥 전체 결과물 한 번에 다운로드")
+    st.caption("지금까지 생성된 모든 내용을 하나의 파일로 다운로드합니다.")
+
     topic_safe = (st.session_state.get(P1_TOPIC_TITLE, "upload") or "upload")[:20]
+    channel_safe = (st.session_state.get(P1_CHANNEL, "채널") or "채널")[:15]
     now_str = datetime.now().strftime("%Y%m%d_%H%M")
 
     dl_col1, dl_col2 = st.columns(2)
 
     with dl_col1:
         try:
+            txt_content = generate_txt()
+            st.download_button(
+                label="📄 전체 패키지 TXT 다운로드",
+                data=txt_content.encode("utf-8"),
+                file_name=f"{channel_safe}_{topic_safe}_전체패키지_{now_str}.txt",
+                mime="text/plain",
+                use_container_width=True,
+                type="primary",
+                key="dl_txt",
+            )
+            st.caption("기획 개요 + 전체 대본 + 시각화 메모 단일 파일")
+        except Exception as e:
+            st.error(f"TXT 생성 오류: {e}")
+
+    with dl_col2:
+        try:
             excel_bytes = generate_excel()
             st.download_button(
-                label="📊 Excel 다운로드 (7시트)",
+                label="📊 전체 패키지 Excel 다운로드 (7시트)",
                 data=excel_bytes,
-                file_name=f"youtube_package_{topic_safe}_{now_str}.xlsx",
+                file_name=f"{channel_safe}_{topic_safe}_전체패키지_{now_str}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
                 type="primary",
@@ -620,17 +643,5 @@ def render_upload_tab():
         except Exception as e:
             st.error(f"Excel 생성 오류: {e}")
 
-    with dl_col2:
-        try:
-            txt_content = generate_txt()
-            st.download_button(
-                label="📄 TXT 다운로드 (전체 통합)",
-                data=txt_content.encode("utf-8"),
-                file_name=f"youtube_package_{topic_safe}_{now_str}.txt",
-                mime="text/plain",
-                use_container_width=True,
-                key="dl_txt",
-            )
-            st.caption("기획 개요 + 전체 대본 + 시각화 메모 단일 파일")
-        except Exception as e:
-            st.error(f"TXT 생성 오류: {e}")
+    st.divider()
+    st.success("🎉 모든 단계 완료! 파일을 저장하고 유튜브에 업로드하세요.")

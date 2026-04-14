@@ -729,85 +729,108 @@ def render_topic_tab():
         result = st.session_state.get("p1_result")
         if not result:
             st.info("좌측에서 채널과 벤치마킹 대상을 입력하고 분석을 시작하세요.")
-            return
-
-        # 최우선 탑픽 배너
-        top_pick = result.get("top_pick", {})
-        top_rank = top_pick.get("rank", 1)
-        st.success(
-            f"🏆 **최우선 추천: 주제 {top_rank}**  —  {top_pick.get('reason','')}\n\n"
-            f"첫 24h 예상: **{top_pick.get('first_24h_views','')}**  |  "
-            f"7일 누적: **{top_pick.get('day7_views','')}**  |  "
-            f"구독 전환율: **{top_pick.get('subscribe_rate','')}**"
-        )
-
-        # 분석 방법론 패널
-        render_methodology_panel(result.get("methodology", {}))
-
-        # 주제 카드 — 탑픽 먼저
-        topics = result.get("topics", [])
-        top_topic = next((t for t in topics if t.get("rank") == top_rank), None)
-        other_topics = [t for t in topics if t.get("rank") != top_rank]
-
-        if top_topic:
-            render_topic_card(top_topic, is_top=True)
-        for topic in sorted(other_topics, key=lambda x: x.get("rank", 99)):
-            render_topic_card(topic, is_top=False)
-
-        # SEO 섹션
-        seo = result.get("seo", {})
-        with st.expander("📌 SEO 키워드 전략"):
-            st.markdown("**메인 키워드**")
-            st.write(", ".join(seo.get("main_keywords", [])))
-            st.markdown("**롱테일 키워드**")
-            for kw in seo.get("longtail_keywords", []):
-                st.write(f"• {kw}")
-            st.markdown("**해시태그 (10개)**")
-            st.write(" ".join(seo.get("hashtags", [])))
-
-        # 내보내기
-        st.divider()
-        saved_channel = st.session_state.get(P1_CHANNEL, "")
-        saved_benchmark = st.session_state.get(P1_BENCHMARK, "")
-        fname = f"주제발굴_{saved_channel}_{datetime.now().strftime('%Y%m%d_%H%M')}"
-
-        ec1, ec2 = st.columns(2)
-        with ec1:
-            excel_bytes = export_to_excel(result, saved_channel, saved_benchmark)
-            st.download_button(
-                "📥 Excel 다운로드 (3시트)",
-                data=excel_bytes,
-                file_name=f"{fname}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                type="primary",
-            )
-        with ec2:
-            csv_lines = ["순위,제목,핵심메시지,검색량,경쟁도,CTR,적합도,난이도,Hook문장"]
-            for t in topics:
-                csv_lines.append(
-                    f"{t.get('rank','')},{t.get('title','').replace(',','，')},"
-                    f"{t.get('core_message','').replace(',','，')},"
-                    f"{t.get('search_volume','')},{t.get('competition','')},"
-                    f"{t.get('expected_ctr','')},{t.get('persona_fit','')},"
-                    f"{t.get('difficulty','')},{t.get('hook_sentence','').replace(',','，')}"
+        else:
+            with st.expander("📊 주제 발굴 결과 보기 (클릭하여 펼치기)", expanded=False):
+                # 최우선 탑픽 배너
+                top_pick = result.get("top_pick", {})
+                top_rank = top_pick.get("rank", 1)
+                st.success(
+                    f"🏆 **최우선 추천: 주제 {top_rank}**  —  {top_pick.get('reason','')}\n\n"
+                    f"첫 24h 예상: **{top_pick.get('first_24h_views','')}**  |  "
+                    f"7일 누적: **{top_pick.get('day7_views','')}**  |  "
+                    f"구독 전환율: **{top_pick.get('subscribe_rate','')}**"
                 )
-            st.download_button(
-                "📥 CSV 다운로드",
-                data="\n".join(csv_lines).encode("utf-8-sig"),
-                file_name=f"{fname}.csv",
-                mime="text/csv",
+
+                # 분석 방법론 패널
+                render_methodology_panel(result.get("methodology", {}))
+
+                # 주제 카드 — 탑픽 먼저
+                topics = result.get("topics", [])
+                top_topic = next((t for t in topics if t.get("rank") == top_rank), None)
+                other_topics = [t for t in topics if t.get("rank") != top_rank]
+
+                if top_topic:
+                    render_topic_card(top_topic, is_top=True)
+                for topic in sorted(other_topics, key=lambda x: x.get("rank", 99)):
+                    render_topic_card(topic, is_top=False)
+
+                # SEO 섹션
+                seo = result.get("seo", {})
+                with st.expander("📌 SEO 키워드 전략"):
+                    st.markdown("**메인 키워드**")
+                    st.write(", ".join(seo.get("main_keywords", [])))
+                    st.markdown("**롱테일 키워드**")
+                    for kw in seo.get("longtail_keywords", []):
+                        st.write(f"• {kw}")
+                    st.markdown("**해시태그 (10개)**")
+                    st.write(" ".join(seo.get("hashtags", [])))
+
+                # 내보내기
+                st.divider()
+                saved_channel = st.session_state.get(P1_CHANNEL, "")
+                saved_benchmark = st.session_state.get(P1_BENCHMARK, "")
+                fname = f"주제발굴_{saved_channel}_{datetime.now().strftime('%Y%m%d_%H%M')}"
+
+                ec1, ec2 = st.columns(2)
+                with ec1:
+                    excel_bytes = export_to_excel(result, saved_channel, saved_benchmark)
+                    st.download_button(
+                        "📥 Excel 다운로드 (3시트)",
+                        data=excel_bytes,
+                        file_name=f"{fname}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        type="primary",
+                    )
+                with ec2:
+                    csv_lines = ["순위,제목,핵심메시지,검색량,경쟁도,CTR,적합도,난이도,Hook문장"]
+                    for t in topics:
+                        csv_lines.append(
+                            f"{t.get('rank','')},{t.get('title','').replace(',','，')},"
+                            f"{t.get('core_message','').replace(',','，')},"
+                            f"{t.get('search_volume','')},{t.get('competition','')},"
+                            f"{t.get('expected_ctr','')},{t.get('persona_fit','')},"
+                            f"{t.get('difficulty','')},{t.get('hook_sentence','').replace(',','，')}"
+                        )
+                    st.download_button(
+                        "📥 CSV 다운로드",
+                        data="\n".join(csv_lines).encode("utf-8-sig"),
+                        file_name=f"{fname}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
+
+                with st.expander("📌 구글 드라이브 업로드 방법"):
+                    st.markdown(
+                        """
+                        1. 위 버튼으로 파일 다운로드
+                        2. [drive.google.com](https://drive.google.com) 접속
+                        3. **+ 새로 만들기** → **파일 업로드** 클릭
+                        4. 다운로드한 파일 선택 → 업로드 완료!
+
+                        > **팁:** Excel 파일은 구글 드라이브에서 **구글 스프레드시트**로 바로 열 수 있습니다.
+                        """
+                    )
+
+    # ── 확정 버튼 (전체 너비, 컬럼 외부) ──────────────────────────────────────
+    if st.session_state.get("p1_result"):
+        st.divider()
+
+        if not st.session_state.get(P1_TOPIC_TITLE):
+            st.warning("⚠️ 위 결과에서 주제를 선택 후 확정하세요.")
+        else:
+            selected = st.session_state.get(P1_TOPIC_TITLE, "")
+            st.success(f"✅ 선택된 주제: **{selected}**")
+
+            if st.button(
+                "✅ 이 주제로 확정하고 썸네일·제목 단계로 →",
+                type="primary",
                 use_container_width=True,
-            )
+                key="confirm_topic",
+            ):
+                st.session_state["p1_confirmed"] = True
+                st.info("👆 상단에서 **🎨 썸네일·제목** 탭을 클릭하세요.")
+                st.rerun()
 
-        with st.expander("📌 구글 드라이브 업로드 방법"):
-            st.markdown(
-                """
-                1. 위 버튼으로 파일 다운로드
-                2. [drive.google.com](https://drive.google.com) 접속
-                3. **+ 새로 만들기** → **파일 업로드** 클릭
-                4. 다운로드한 파일 선택 → 업로드 완료!
-
-                > **팁:** Excel 파일은 구글 드라이브에서 **구글 스프레드시트**로 바로 열 수 있습니다.
-                """
-            )
+        if st.session_state.get("p1_confirmed"):
+            st.success("✅ 주제 확정 완료! **🎨 썸네일·제목** 탭으로 이동하세요.")

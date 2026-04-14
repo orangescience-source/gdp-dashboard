@@ -386,30 +386,18 @@ def render_mini_hooks(mini_hooks: list):
 # ──────────────────────────────────────────
 
 def render_structure_tab():
-    p2_confirmed = st.session_state.get("p2_confirmed", False)
-    p2_title = st.session_state.get("p2_title", "")
-
-    if not p2_title:
-        st.info(
-            "🎨 **탭3 (썸네일·제목)** 에서 "
-            "썸네일과 제목을 먼저 생성해주세요."
-        )
-        st.stop()
-
-    if not p2_confirmed:
+    if not st.session_state.get("p2_confirmed"):
         st.warning(
             "⚠️ **탭3 (썸네일·제목)** 에서 "
-            "'✅ 제목·썸네일 확정 후 대본 구조 설계로 이동' "
-            "버튼을 눌러야 이 탭을 사용할 수 있습니다."
+            "'확정하고 대본 구조 단계로 →' "
+            "버튼을 눌러주세요."
         )
         st.stop()
 
     # 확정된 내용 상단 요약 배너
     with st.container():
-        st.success(
-            f"✅ 확정된 제목: "
-            f"**{p2_title}**"
-        )
+        p2_title = st.session_state.get("p2_title", "")
+        st.success(f"✅ 확정된 제목: **{p2_title}**")
 
     render_pipeline_status()
 
@@ -483,78 +471,78 @@ def render_structure_tab():
         st.info("위 버튼을 눌러 대본 구조를 생성하세요.")
         return
 
+    with st.expander("📐 대본 구조 결과 보기 (클릭하여 펼치기)", expanded=False):
+        # ── 영상 메타 요약 ──
+        meta = result.get("video_meta", {})
+        overall = result.get("overall_strategy", {})
+
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        m_col1.metric("⏱️ 총 길이", meta.get("total_duration", "20:00"))
+        m_col2.metric("📊 목표 지속률", meta.get("target_retention", "-"))
+        m_col3.metric("💓 감정 변화", f"{meta.get('emotion_change_count', 0)}회")
+        m_col4.metric("🪝 미니훅", f"{meta.get('mini_hook_count', 0)}개")
+
+        if overall.get("emotion_arc"):
+            st.info(f"🎭 감정 호: {overall.get('emotion_arc','')}")
+
+        with st.expander("📊 전략 요약", expanded=False):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown(f"**지속률 핵심 전략:** {overall.get('retention_key','')}")
+                st.markdown(f"**가장 강렬한 장면:** {overall.get('strongest_moment','')}")
+            with col_b:
+                st.markdown(f"**이탈 위험 구간:** {overall.get('risk_point','')}")
+
+        st.divider()
+
+        # ── 8단계 구조 카드 ──
+        st.subheader("🗂️ 8단계 대본 구조")
+        st.caption("각 섹션의 목적·내용 가이드·감정 강도를 확인하세요.")
+
+        structure = result.get("structure", [])
+        scene_meta = result.get("scene_meta", [])
+        scene_by_stage = {s.get("stage"): s for s in scene_meta}
+
+        for stage in structure:
+            scene = scene_by_stage.get(stage.get("stage"))
+            render_structure_card(stage, scene)
+
+        st.divider()
+
+        # ── 감정 지도 ──
+        emotion_map = result.get("emotion_map", [])
+        render_emotion_map(emotion_map)
+
+        st.divider()
+
+        # ── 미니훅 ──
+        mini_hooks = result.get("mini_hooks", [])
+        render_mini_hooks(mini_hooks)
+
+    # ── 확정 버튼 (expander 외부, 1개로 통일) ──
     st.divider()
 
-    # ── 영상 메타 요약 ──
-    meta = result.get("video_meta", {})
-    overall = result.get("overall_strategy", {})
-
-    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-    m_col1.metric("⏱️ 총 길이", meta.get("total_duration", "20:00"))
-    m_col2.metric("📊 목표 지속률", meta.get("target_retention", "-"))
-    m_col3.metric("💓 감정 변화", f"{meta.get('emotion_change_count', 0)}회")
-    m_col4.metric("🪝 미니훅", f"{meta.get('mini_hook_count', 0)}개")
-
-    if overall.get("emotion_arc"):
-        st.info(f"🎭 감정 호: {overall.get('emotion_arc','')}")
-
-    with st.expander("📊 전략 요약", expanded=False):
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.markdown(f"**지속률 핵심 전략:** {overall.get('retention_key','')}")
-            st.markdown(f"**가장 강렬한 장면:** {overall.get('strongest_moment','')}")
-        with col_b:
-            st.markdown(f"**이탈 위험 구간:** {overall.get('risk_point','')}")
-
-    st.divider()
-
-    # ── 8단계 구조 카드 ──
-    st.subheader("🗂️ 8단계 대본 구조")
-    st.caption("각 섹션의 목적·내용 가이드·감정 강도를 확인하세요.")
-
-    structure = result.get("structure", [])
-    scene_meta = result.get("scene_meta", [])
-    # scene_meta를 stage 번호로 인덱싱
-    scene_by_stage = {s.get("stage"): s for s in scene_meta}
-
-    for stage in structure:
-        scene = scene_by_stage.get(stage.get("stage"))
-        render_structure_card(stage, scene)
-
-    st.divider()
-
-    # ── 감정 지도 ──
+    structure  = result.get("structure", [])
     emotion_map = result.get("emotion_map", [])
-    render_emotion_map(emotion_map)
+    mini_hooks  = result.get("mini_hooks", [])
+    scene_meta  = result.get("scene_meta", [])
 
-    st.divider()
+    if structure:
+        st.success("✅ 8단계 구조 생성 완료")
 
-    # ── 미니훅 ──
-    mini_hooks = result.get("mini_hooks", [])
-    render_mini_hooks(mini_hooks)
+        if st.button(
+            "✅ 확정하고 대본 작성 단계로 →",
+            type="primary",
+            use_container_width=True,
+            key="confirm_p3",
+        ):
+            st.session_state[P3_STRUCTURE]   = structure
+            st.session_state[P3_EMOTION_MAP] = emotion_map
+            st.session_state[P3_MINI_HOOKS]  = mini_hooks
+            st.session_state[P3_SCENE_META]  = scene_meta
+            st.session_state["p3_confirmed"] = True
+            st.info("👆 상단에서 **📝 대본 작성** 탭을 클릭하세요.")
+            st.rerun()
 
-    st.divider()
-
-    # ── 대본 구조 확정 버튼 ──
-    st.subheader("✅ 대본 구조 확정")
-    st.caption("확정하면 다음 단계(대본 작성)에서 이 구조를 기반으로 상세 대본을 작성합니다.")
-
-    already_confirmed = bool(st.session_state.get(P3_STRUCTURE))
-    if already_confirmed:
-        st.success("✅ 이미 확정된 대본 구조가 있습니다. 재확정하려면 아래 버튼을 누르세요.")
-
-    if st.button(
-        "📐 이 대본 구조로 확정",
-        type="primary",
-        use_container_width=True,
-        key="confirm_p3",
-    ):
-        st.session_state[P3_STRUCTURE]   = structure
-        st.session_state[P3_EMOTION_MAP] = emotion_map
-        st.session_state[P3_MINI_HOOKS]  = mini_hooks
-        st.session_state[P3_SCENE_META]  = scene_meta
-        st.success(
-            f"✅ 대본 구조 확정 완료! "
-            f"8단계 구조 · 감정 지도 {len(emotion_map)}개 · 미니훅 {len(mini_hooks)}개"
-        )
-        st.balloons()
+    if st.session_state.get("p3_confirmed"):
+        st.success("✅ 대본 구조 확정 완료! **📝 대본 작성** 탭으로 이동하세요.")

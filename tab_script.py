@@ -297,8 +297,12 @@ def _render_result_tabs(front: str, back: str):
 # ──────────────────────────────────────────
 
 def render_script_tab():
-    if not st.session_state.get("p3_structure"):
-        st.info("📐 탭4에서 대본 구조를 먼저 확정해주세요.")
+    if not st.session_state.get("p3_confirmed"):
+        st.warning(
+            "⚠️ **탭4 (대본 구조)** 에서 "
+            "'확정하고 대본 작성 단계로 →' "
+            "버튼을 눌러주세요."
+        )
         st.stop()
 
     render_pipeline_status()
@@ -409,57 +413,77 @@ def render_script_tab():
             st.error(str(e))
             return
 
-    # ── 결과 표시 ──
+    # ── 결과 표시 (접힘) ──
     front_script = st.session_state.get(P4_SCRIPT_FRONT, "")
     back_script  = st.session_state.get(P4_SCRIPT_BACK, "")
+
+    if front_script:
+        with st.expander("📄 앞부분 대본 (STAGE 1~4) 보기", expanded=False):
+            st.text_area(
+                "",
+                value=front_script,
+                height=400,
+                key="front_view",
+                label_visibility="collapsed",
+            )
+            st.caption(f"글자수: {len(front_script):,}자")
+
+    if back_script:
+        with st.expander("📄 뒷부분 대본 (STAGE 5~8) + 시각화 메모 보기", expanded=False):
+            st.text_area(
+                "",
+                value=back_script,
+                height=400,
+                key="back_view",
+                label_visibility="collapsed",
+            )
+            st.caption(f"글자수: {len(back_script):,}자")
 
     if not front_script:
         return
 
     st.divider()
-    st.subheader("📋 생성된 대본")
 
-    full_body, full_memo = _render_result_tabs(front_script, back_script)
+    # ── 확정 버튼 (1개로 통일) ──
+    total = len(front_script) + len(back_script)
 
-    st.divider()
+    if front_script and back_script:
+        st.metric(
+            "전체 대본 글자수",
+            f"{total:,}자",
+            delta="목표 10,000자 이상 달성" if total >= 10000 else f"{10000 - total:,}자 부족",
+        )
 
-    # ── 확정 저장 버튼 ──
-    st.subheader("✅ 전체 대본 확정 저장")
-    already = st.session_state.get(P4_CONFIRMED, False)
-    if already:
-        saved_chars = len(st.session_state.get(P4_SCRIPT_FULL, ""))
-        st.success(f"✅ 이미 확정된 대본이 있습니다. ({saved_chars:,}자) 재확정하려면 아래 버튼을 누르세요.")
+        if total < 8000:
+            st.warning(f"⚠️ 현재 {total:,}자입니다. 8,000자 이상 권장합니다.")
 
-    col_confirm, col_dl = st.columns([2, 1])
-
-    with col_confirm:
         if st.button(
-            "✅ 전체 대본 확정 저장",
+            "✅ 대본 확정하고 업로드 패키지 단계로 →",
             type="primary",
             use_container_width=True,
             key="confirm_script",
-            disabled=not back_script,
+            disabled=(total < 1000),
         ):
-            # 편집 탭에서 합친 내용이 있으면 우선 적용
-            merged = st.session_state.pop("_p4_edit_merged", None)
-            final_body = merged if merged else full_body
-            full_script = final_body
+            full = front_script + "\n\n" + back_script
+            # 시각화 메모 분리 후 저장
+            full_body, full_memo = _split_script_and_memo(full)
+            full_with_memo = full_body
             if full_memo:
-                full_script += f"\n\n{_VIZ_SEPARATOR}\n{full_memo}"
-
-            st.session_state[P4_SCRIPT_FULL] = full_script
+                full_with_memo += f"\n\n{_VIZ_SEPARATOR}\n{full_memo}"
+            st.session_state[P4_SCRIPT_FULL] = full_with_memo
             st.session_state[P4_VIZ_MEMO]    = full_memo
             st.session_state[P4_CONFIRMED]    = True
-            char_count = len(final_body)
-            st.success(
-                f"✅ 대본 확정 완료! {char_count:,}자 "
-                f"{'— 목표 달성!' if char_count >= 8000 else '(8,000자 미달 — 재생성 권장)'}"
-            )
-            if char_count >= 8000:
-                st.balloons()
+            st.info("👆 상단에서 **📦 업로드 패키지** 탭을 클릭하세요.")
+            st.rerun()
 
-    with col_dl:
-        # TXT 다운로드 (앞+뒤 합본)
+    if st.session_state.get(P4_CONFIRMED):
+        saved_chars = len(st.session_state.get(P4_SCRIPT_FULL, ""))
+        st.success(
+            f"✅ 대본 확정 완료! ({saved_chars:,}자) "
+            "**📦 업로드 패키지** 탭으로 이동하세요."
+        )
+
+        # TXT 다운로드
         dl_text = front_script
         if back_script:
             dl_text += "\n\n" + back_script
@@ -471,4 +495,3 @@ def render_script_tab():
             use_container_width=True,
             key="dl_script_txt",
         )
-        st.caption("앞부분 + 뒷부분 + 시각화 메모 포함")

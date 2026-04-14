@@ -63,6 +63,7 @@ _DEFAULTS: dict = {
     P1_CORE_MESSAGE:  "",
     P1_EMOTION:       "",
     P1_HOOK:          "",
+    "p1_confirmed":   False,
     # P2
     P2_RESULT:        None,
     P2_TITLE:         "",
@@ -76,6 +77,7 @@ _DEFAULTS: dict = {
     P3_EMOTION_MAP:   [],
     P3_MINI_HOOKS:    [],
     P3_SCENE_META:    [],
+    "p3_confirmed":   False,
     # P4
     P4_RESULT:        None,
     P4_SCRIPT_FRONT:  "",
