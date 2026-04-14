@@ -189,8 +189,10 @@ def render_methodology_panel(methodology: dict):
 
     score_criteria = methodology.get("score_criteria", {})
 
-    st.markdown(
-        f"""
+    with st.expander("🔬 분석 로직 & 신뢰도 (클릭하여 펼치기)", expanded=False):
+        st.caption("Claude의 분석 근거 및 원본 데이터")
+        st.markdown(
+            f"""
         <div style="
             border: 1px solid #dce3ed;
             border-radius: 12px;
@@ -262,8 +264,8 @@ def render_methodology_panel(methodology: dict):
             </details>
         </div>
         """,
-        unsafe_allow_html=True,
-    )
+            unsafe_allow_html=True,
+        )
 
 
 def render_topic_card(topic: dict, is_top: bool = False):

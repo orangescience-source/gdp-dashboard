@@ -374,7 +374,7 @@ def render_thumbnail_tab():
 
     # ── 클릭 구조 진단 ──
     click = result.get("click_structure", {})
-    with st.expander("🔍 클릭 구조 진단", expanded=True):
+    with st.expander("🔍 클릭 구조 진단 (클릭하여 펼치기)", expanded=False):
         c1, c2 = st.columns(2)
         with c1:
             st.markdown(f"**핵심 사건:** {click.get('core_event','')}")
