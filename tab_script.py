@@ -158,6 +158,66 @@ def _stream_script(system_prompt: str, user_message: str, placeholder) -> str:
 
 
 # ──────────────────────────────────────────
+# 분량 보완 (자동 확장)
+# ──────────────────────────────────────────
+
+def _run_boswan(part: str):
+    """대본 분량이 부족할 때 Claude로 해당 파트를 자동 확장한다."""
+    channel_name   = st.session_state.get(P1_CHANNEL, "")
+    topic_title    = st.session_state.get(P1_TOPIC_TITLE, "")
+    core_message   = st.session_state.get(P1_CORE_MESSAGE, "")
+    target_emotion = st.session_state.get(P1_EMOTION, "")
+    video_title    = st.session_state.get(P2_TITLE, "")
+
+    if part == "front":
+        current_script = st.session_state.get(P4_SCRIPT_FRONT, "")
+        key   = P4_SCRIPT_FRONT
+        label = "앞부분"
+    else:
+        current_script = st.session_state.get(P4_SCRIPT_BACK, "")
+        key   = P4_SCRIPT_BACK
+        label = "뒷부분"
+
+    if not current_script:
+        st.error(f"{label} 대본이 없습니다.")
+        return
+
+    expansion_system = (
+        f"[채널 페르소나]\n{_build_persona_block(channel_name)}\n\n"
+        f"[확정된 영상 정보]\n"
+        f"채널명: {channel_name}\n"
+        f"확정 주제: {topic_title}\n"
+        f"핵심 메시지: {core_message}\n"
+        f"타겟 감정: {target_emotion}\n"
+        f"확정 제목: {video_title}\n\n"
+        f"[기존 {label} 대본]\n{current_script}\n\n"
+        "# 분량 보완 지침\n"
+        "위 대본을 아래 5가지 방법으로 확장하라. 기존 내용을 삭제하지 말고 풍부하게 덧붙여라.\n"
+        "1. 구체적 수치·데이터·사례를 3개 이상 추가\n"
+        "2. 시청자에게 말 걸기(질문·공감·호명) 대사 3줄 이상 추가\n"
+        "3. 감정 전환 장면에 구체적 묘사 2단락 추가\n"
+        "4. 각 STAGE 말미에 다음 내용 예고 멘트 1줄 추가\n"
+        "5. 핵심 포인트마다 구체적 예시·일화 1개씩 추가\n"
+        "최종 출력은 완전한 대본 텍스트만 출력하라 (JSON 불필요)."
+    )
+    user_message = (
+        f"{label} 대본을 5가지 방법으로 확장하여 최소 5,000자 이상으로 만들어라.\n"
+        "기존 구조와 흐름을 유지하면서 내용을 풍부하게 늘려라."
+    )
+
+    st.subheader(f"🔧 {label} 자동 보완 중...")
+    placeholder = st.empty()
+    try:
+        with st.spinner(f"Claude AI가 {label} 대본을 보완하는 중... (30~60초 소요)"):
+            expanded = _stream_script(expansion_system, user_message, placeholder)
+        st.session_state[key] = expanded
+        st.success(f"✅ {label} 보완 완료! ({len(expanded):,}자)")
+        st.rerun()
+    except RuntimeError as e:
+        st.error(str(e))
+
+
+# ──────────────────────────────────────────
 # 앞부분 대본 생성
 # ──────────────────────────────────────────
 
@@ -171,20 +231,22 @@ def generate_front_script(
     front_hooks  = [h for h in mini_hooks if h.get("stage", 0) <= 4]
     front_scenes = [s for s in scene_meta  if s.get("stage", 0) <= 4]
 
-    system_prompt = PROMPT_4_FRONT_SYSTEM.format(
-        persona_block    = _build_persona_block(channel_name),
-        channel_name     = channel_name,
-        topic_title      = topic_title,
-        core_message     = core_message,
-        target_emotion   = target_emotion,
-        video_title      = video_title,
-        thumbnail_text   = thumbnail_text,
-        hook_30sec       = hook_30sec,
-        structure_text   = _structure_to_text(front_stages),
-        emotion_map_text = _emotion_map_to_text(emotion_map),
-        mini_hooks_text  = _mini_hooks_to_text(front_hooks),
-        scene_meta_text  = _scene_meta_to_text(front_scenes),
+    context_block = (
+        f"[채널 페르소나]\n{_build_persona_block(channel_name)}\n\n"
+        f"[확정된 영상 정보]\n"
+        f"채널명: {channel_name}\n"
+        f"확정 주제: {topic_title}\n"
+        f"핵심 메시지: {core_message}\n"
+        f"타겟 감정: {target_emotion}\n"
+        f"확정 제목: {video_title}\n"
+        f"확정 썸네일: {thumbnail_text}\n"
+        f"초반 30초 Hook: {hook_30sec}\n\n"
+        f"[확정된 대본 구조]\n{_structure_to_text(front_stages)}\n\n"
+        f"[감정 지도 요약]\n{_emotion_map_to_text(emotion_map)}\n\n"
+        f"[미니훅 위치]\n{_mini_hooks_to_text(front_hooks)}\n\n"
+        f"[장면 메타]\n{_scene_meta_to_text(front_scenes)}\n\n"
     )
+    system_prompt = context_block + PROMPT_4_FRONT_SYSTEM
     user_message = (
         f"채널: {channel_name} / 주제: {topic_title} / 제목: {video_title}\n"
         "앞부분(STAGE 1~4) 대본을 작성하라. 4,500자 이상."
@@ -210,20 +272,19 @@ def generate_back_script(
     # 앞부분 마지막 200자만 전달
     front_tail = front_script[-200:] if len(front_script) > 200 else front_script
 
-    system_prompt = PROMPT_4_BACK_SYSTEM.format(
-        persona_block        = _build_persona_block(channel_name),
-        channel_name         = channel_name,
-        topic_title          = topic_title,
-        core_message         = core_message,
-        target_emotion       = target_emotion,
-        video_title          = video_title,
-        thumbnail_text       = thumbnail_text,
-        hook_30sec           = hook_30sec,
-        front_tail           = front_tail,
-        back_structure_text  = _structure_to_text(back_stages),
-        back_mini_hooks_text = _mini_hooks_to_text(back_hooks),
-        back_scene_meta_text = _scene_meta_to_text(back_scenes),
+    context_block = (
+        f"[채널 페르소나]\n{_build_persona_block(channel_name)}\n\n"
+        f"[확정된 영상 정보]\n"
+        f"채널명: {channel_name}\n"
+        f"확정 주제: {topic_title}\n"
+        f"확정 제목: {video_title}\n"
+        f"핵심 메시지: {core_message}\n\n"
+        f"[앞부분 대본 (참고용 — 마지막 200자)]\n{front_tail}\n\n"
+        f"[확정된 대본 구조 — 뒷부분]\n{_structure_to_text(back_stages)}\n\n"
+        f"[미니훅 위치 — 뒷부분]\n{_mini_hooks_to_text(back_hooks)}\n\n"
+        f"[장면 메타 — 뒷부분]\n{_scene_meta_to_text(back_scenes)}\n\n"
     )
+    system_prompt = context_block + PROMPT_4_BACK_SYSTEM
     user_message = (
         f"채널: {channel_name} / 주제: {topic_title} / 제목: {video_title}\n"
         "뒷부분(STAGE 5~8) 대본을 작성하라. 4,500자 이상."
@@ -296,8 +357,12 @@ def _render_result_tabs(front: str, back: str):
 # ──────────────────────────────────────────
 
 def render_script_tab():
-    if not st.session_state.get("p3_structure"):
-        st.info("📐 탭4에서 대본 구조를 먼저 확정해주세요.")
+    if not st.session_state.get("p3_confirmed"):
+        st.warning(
+            "⚠️ **탭4 (대본 구조)** 에서 "
+            "'확정하고 대본 작성 단계로 →' "
+            "버튼을 눌러주세요."
+        )
         st.stop()
 
     render_pipeline_status()
@@ -408,57 +473,149 @@ def render_script_tab():
             st.error(str(e))
             return
 
-    # ── 결과 표시 ──
+    # ── 결과 표시 (접힘) ──
     front_script = st.session_state.get(P4_SCRIPT_FRONT, "")
     back_script  = st.session_state.get(P4_SCRIPT_BACK, "")
+
+    if front_script:
+        with st.expander("📄 앞부분 대본 (STAGE 1~4) 보기", expanded=False):
+            st.text_area(
+                "",
+                value=front_script,
+                height=400,
+                key="front_view",
+                label_visibility="collapsed",
+            )
+            st.caption(f"글자수: {len(front_script):,}자")
+        # ── 앞부분 분량 검증 ──
+        front_chars = len(front_script)
+        col_fv1, col_fv2 = st.columns([3, 1])
+        with col_fv1:
+            if front_chars >= 5000:
+                st.success(f"✅ 앞부분: {front_chars:,}자 (5,000자 이상 달성)")
+            else:
+                st.warning(
+                    f"⚠️ 앞부분: {front_chars:,}자 — 5,000자 권장 "
+                    f"({5000 - front_chars:,}자 부족)"
+                )
+        with col_fv2:
+            if front_chars < 5000:
+                if st.button(
+                    "🔧 앞부분 자동 보완",
+                    key="btn_boswan_front",
+                    use_container_width=True,
+                ):
+                    _run_boswan("front")
+
+    if back_script:
+        with st.expander("📄 뒷부분 대본 (STAGE 5~8) + 시각화 메모 보기", expanded=False):
+            st.text_area(
+                "",
+                value=back_script,
+                height=400,
+                key="back_view",
+                label_visibility="collapsed",
+            )
+            st.caption(f"글자수: {len(back_script):,}자")
+        # ── 뒷부분 분량 검증 ──
+        back_chars = len(back_script)
+        col_bv1, col_bv2 = st.columns([3, 1])
+        with col_bv1:
+            if back_chars >= 5000:
+                st.success(f"✅ 뒷부분: {back_chars:,}자 (5,000자 이상 달성)")
+            else:
+                st.warning(
+                    f"⚠️ 뒷부분: {back_chars:,}자 — 5,000자 권장 "
+                    f"({5000 - back_chars:,}자 부족)"
+                )
+        with col_bv2:
+            if back_chars < 5000:
+                if st.button(
+                    "🔧 뒷부분 자동 보완",
+                    key="btn_boswan_back",
+                    use_container_width=True,
+                ):
+                    _run_boswan("back")
 
     if not front_script:
         return
 
     st.divider()
-    st.subheader("📋 생성된 대본")
 
-    full_body, full_memo = _render_result_tabs(front_script, back_script)
+    # ── 확정 버튼 (1개로 통일) ──
+    front_chars = len(front_script)
+    back_chars  = len(back_script)
+    total = front_chars + back_chars
 
-    st.divider()
+    if front_script and back_script:
+        # 3-col 분량 메트릭
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            st.metric(
+                "앞부분 (STAGE 1~4)",
+                f"{front_chars:,}자",
+                delta="✅ 달성" if front_chars >= 5000 else f"{5000 - front_chars:,}자 부족",
+            )
+        with col_m2:
+            st.metric(
+                "뒷부분 (STAGE 5~8)",
+                f"{back_chars:,}자",
+                delta="✅ 달성" if back_chars >= 5000 else f"{5000 - back_chars:,}자 부족",
+            )
+        with col_m3:
+            if total >= 12000:
+                total_delta = "🏆 목표 초과"
+            elif total >= 10000:
+                total_delta = "✅ 목표 달성"
+            else:
+                total_delta = f"{10000 - total:,}자 부족"
+            st.metric("전체 합계", f"{total:,}자", delta=total_delta)
 
-    # ── 확정 저장 버튼 ──
-    st.subheader("✅ 전체 대본 확정 저장")
-    already = st.session_state.get(P4_CONFIRMED, False)
-    if already:
-        saved_chars = len(st.session_state.get(P4_SCRIPT_FULL, ""))
-        st.success(f"✅ 이미 확정된 대본이 있습니다. ({saved_chars:,}자) 재확정하려면 아래 버튼을 누르세요.")
+        # 등급 + 진행 바
+        if total >= 12000:
+            grade = "🏆 훌륭함 (12,000자 이상)"
+        elif total >= 10000:
+            grade = "✅ 목표 달성 (10,000자 이상)"
+        elif total >= 8000:
+            grade = "⚠️ 권장 미달 (8,000~10,000자)"
+        else:
+            grade = "❌ 분량 부족 (8,000자 미만)"
 
-    col_confirm, col_dl = st.columns([2, 1])
+        st.progress(min(total / 12000, 1.0), text=f"분량 등급: {grade}")
 
-    with col_confirm:
+        if total < 8000:
+            st.warning(
+                f"⚠️ 현재 {total:,}자입니다. "
+                "위 '자동 보완' 버튼으로 분량을 늘려주세요."
+            )
+
         if st.button(
-            "✅ 전체 대본 확정 저장",
+            "✅ 대본 확정하고 업로드 패키지 단계로 →",
             type="primary",
             use_container_width=True,
             key="confirm_script",
-            disabled=not back_script,
+            disabled=(total < 1000),
         ):
-            # 편집 탭에서 합친 내용이 있으면 우선 적용
-            merged = st.session_state.pop("_p4_edit_merged", None)
-            final_body = merged if merged else full_body
-            full_script = final_body
+            full = front_script + "\n\n" + back_script
+            # 시각화 메모 분리 후 저장
+            full_body, full_memo = _split_script_and_memo(full)
+            full_with_memo = full_body
             if full_memo:
-                full_script += f"\n\n{_VIZ_SEPARATOR}\n{full_memo}"
-
-            st.session_state[P4_SCRIPT_FULL] = full_script
+                full_with_memo += f"\n\n{_VIZ_SEPARATOR}\n{full_memo}"
+            st.session_state[P4_SCRIPT_FULL] = full_with_memo
             st.session_state[P4_VIZ_MEMO]    = full_memo
             st.session_state[P4_CONFIRMED]    = True
-            char_count = len(final_body)
-            st.success(
-                f"✅ 대본 확정 완료! {char_count:,}자 "
-                f"{'— 목표 달성!' if char_count >= 8000 else '(8,000자 미달 — 재생성 권장)'}"
-            )
-            if char_count >= 8000:
-                st.balloons()
+            st.info("👆 상단에서 **📦 업로드 패키지** 탭을 클릭하세요.")
+            st.rerun()
 
-    with col_dl:
-        # TXT 다운로드 (앞+뒤 합본)
+    if st.session_state.get(P4_CONFIRMED):
+        saved_chars = len(st.session_state.get(P4_SCRIPT_FULL, ""))
+        st.success(
+            f"✅ 대본 확정 완료! ({saved_chars:,}자) "
+            "**📦 업로드 패키지** 탭으로 이동하세요."
+        )
+
+        # TXT 다운로드
         dl_text = front_script
         if back_script:
             dl_text += "\n\n" + back_script
@@ -470,4 +627,3 @@ def render_script_tab():
             use_container_width=True,
             key="dl_script_txt",
         )
-        st.caption("앞부분 + 뒷부분 + 시각화 메모 포함")
