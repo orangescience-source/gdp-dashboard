@@ -100,6 +100,13 @@ _DEFAULTS: dict = {
     "yt_search_results": [],
     "benchmark_input":   "",
     "benchmark_title":   "",
+    # 기획 입력 폼
+    "planning_topic":      "",
+    "planning_message":    "",
+    "planning_emotion":    "",
+    "planning_data":       "",
+    "planning_characters": "",
+    "planning_context":    "",
 }
 
 

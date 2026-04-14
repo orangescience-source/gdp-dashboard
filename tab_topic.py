@@ -111,14 +111,25 @@ def _extract_json(raw: str) -> dict:
     return json.loads(json_str)
 
 
-def call_claude_prompt1(channel_name, benchmark_input, video_length, extra_req):
+def call_claude_prompt1(channel_name, benchmark_input, video_length, extra_req,
+                        planning_context=""):
     persona_block = build_persona_block(channel_name)
     system_prompt = PROMPT_1_SYSTEM.format(persona_block=persona_block)
+
+    planning_section = ""
+    if planning_context.strip():
+        planning_section = (
+            f"\n[사전 기획 정보 - 반드시 반영]\n"
+            f"{planning_context}\n"
+            "위 기획 정보를 최대한 반영하여 주제를 발굴해주세요.\n"
+        )
+
     user_message = (
         f"채널명: {channel_name}\n"
         f"벤치마킹 대상: {benchmark_input}\n"
         f"원하는 영상 길이: {video_length}\n"
-        f"추가 요구사항: {extra_req if extra_req else '없음'}\n\n"
+        f"추가 요구사항: {extra_req if extra_req else '없음'}\n"
+        f"{planning_section}\n"
         "위 정보를 바탕으로 프롬프트 1을 실행하여 JSON 형식으로 결과를 반환하라.\n"
         "중요: 각 필드는 간결하게 작성하라 (한 필드당 100자 이내). "
         "응답은 반드시 완전한 JSON이어야 한다."
@@ -669,6 +680,80 @@ def render_topic_tab():
 
     st.divider()
 
+    # ── 기획 입력 폼 ────────────────────────────────────────────────────────────
+    st.subheader("📋 기획 정보 입력")
+    st.caption(
+        "입력할수록 더 정확한 주제가 발굴됩니다. "
+        "필수 항목만 입력해도 됩니다."
+    )
+
+    stage_hooks = [
+        ("STAGE 1 HOOK",        "강렬한 첫 장면"),
+        ("STAGE 2 PROBLEM",     "문제 제기"),
+        ("STAGE 3 CONTEXT",     "배경 설명"),
+        ("STAGE 4 TWIST",       "반전/핵심 폭로"),
+        ("STAGE 5 DEEP DIVE",   "심층 분석"),
+        ("STAGE 6 IMPLICATION", "영향/결과"),
+        ("STAGE 7 ACTION",      "행동 제안"),
+        ("STAGE 8 END",         "마무리 + 예고"),
+    ]
+
+    with st.expander("📋 기획 정보 입력 (클릭하여 펼치기)", expanded=True):
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            st.text_input(
+                "1️⃣ 영상 주제 (선택)",
+                placeholder='예: "한국 부동산 폭락의 진실"',
+                key="planning_topic",
+                help="구체적인 주제가 있으면 입력. 없으면 비워두세요.",
+            )
+            st.text_input(
+                "2️⃣ 핵심 메시지 (선택)",
+                placeholder="시청자가 가져갈 1문장",
+                key="planning_message",
+                help="예: 지금 집을 사면 안 되는 이유 3가지",
+            )
+            st.text_input(
+                "3️⃣ 타겟 감정 흐름 (선택)",
+                placeholder="예: 공포 → 분노 → 희망",
+                key="planning_emotion",
+                help="시청자가 느껴야 할 감정 흐름",
+            )
+            st.text_area(
+                "6️⃣ 주요 수치/데이터 (선택)",
+                placeholder=(
+                    "예: 서울 아파트 평균가 12억\n"
+                    "금리 3.5% → 5.0% 상승\n"
+                    "거래량 전년 대비 40% 감소"
+                ),
+                height=100,
+                key="planning_data",
+                help="대본에 반영할 수치나 통계",
+            )
+
+        with col_b:
+            st.markdown("**4️⃣ 시놉시스 (선택)**")
+            st.caption("비워두면 Claude가 자동 설계합니다.")
+            for stage_key, stage_hint in stage_hooks:
+                st.text_input(
+                    stage_key,
+                    placeholder=stage_hint,
+                    key=f"synopsis_{stage_key}",
+                )
+            st.text_area(
+                "5️⃣ 등장 캐릭터 (선택)",
+                placeholder=(
+                    "예: 주인공 외 대조 인물\n"
+                    "- 영끌족 청년 (피해자)\n"
+                    "- 갭투자자 (가해자)"
+                ),
+                height=80,
+                key="planning_characters",
+            )
+
+    st.divider()
+
     col_in, col_out = st.columns([1, 2])
 
     # ── 입력 영역 ──────────────────────────────────────────────────────────────
@@ -711,10 +796,34 @@ def render_topic_tab():
         st.subheader("📋 분석 결과")
 
         if run_btn:
+            # ── 기획 정보 통합 ──
+            synopsis_text = ""
+            for stage_key, _ in stage_hooks:
+                val = st.session_state.get(f"synopsis_{stage_key}", "")
+                if val.strip():
+                    synopsis_text += f"[{stage_key}] {val}\n"
+
+            planning_context = ""
+            if st.session_state.get("planning_topic"):
+                planning_context += f"영상 주제: {st.session_state['planning_topic']}\n"
+            if st.session_state.get("planning_message"):
+                planning_context += f"핵심 메시지: {st.session_state['planning_message']}\n"
+            if st.session_state.get("planning_emotion"):
+                planning_context += f"타겟 감정 흐름: {st.session_state['planning_emotion']}\n"
+            if synopsis_text:
+                planning_context += f"\n시놉시스:\n{synopsis_text}\n"
+            if st.session_state.get("planning_data"):
+                planning_context += f"\n주요 데이터:\n{st.session_state['planning_data']}\n"
+            if st.session_state.get("planning_characters"):
+                planning_context += f"\n등장 캐릭터:\n{st.session_state['planning_characters']}\n"
+
+            st.session_state["planning_context"] = planning_context
+
             with st.spinner("Claude AI가 주제를 분석하는 중... (10~30초 소요)"):
                 try:
                     result = call_claude_prompt1(
-                        channel_name, benchmark_input, video_length, extra_req
+                        channel_name, benchmark_input, video_length, extra_req,
+                        planning_context,
                     )
                     st.session_state["p1_result"] = result
                     st.session_state[P1_CHANNEL]    = channel_name
