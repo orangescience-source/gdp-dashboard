@@ -16,6 +16,8 @@ from tab_structure import render_structure_tab
 from tab_script import render_script_tab
 from tab_upload import render_upload_tab
 from tab_visualization import render_visualization_tab
+from tab_channel_manager import render_channel_manager_tab
+from channel_manager import get_all_channel_names, BASE_CHANNEL_NAMES
 from session_state_manager import init_session_state, reset_pipeline
 
 st.set_page_config(
@@ -362,8 +364,8 @@ st.markdown("""
 st.title("🎬 YouTube 채널 전략 도구")
 st.caption("Claude AI가 분석하는 유튜브 채널 전략 플랫폼")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
-    ["🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목", "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지", "🖼️ 시각화 프롬프트"]
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+    ["🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목", "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지", "🖼️ 시각화 프롬프트", "⚙️ 채널 관리"]
 )
 
 # ── 사이드바 (니치 발굴 탭용) ─────────────────────────────────────────────────
@@ -425,6 +427,14 @@ with st.sidebar:
     done_count = sum(1 for _, d in steps if d)
     st.progress(done_count / len(steps))
     st.caption(f"{done_count}/{len(steps)} 단계 완료")
+
+    st.divider()
+    total_ch  = len(get_all_channel_names())
+    custom_ch = total_ch - len(BASE_CHANNEL_NAMES)
+    st.caption(
+        f"📺 채널: 기본 {len(BASE_CHANNEL_NAMES)}개 "
+        f"+ 사용자 {custom_ch}개 = 총 {total_ch}개"
+    )
 
     st.divider()
     if st.button("🔄 처음부터 다시 시작", use_container_width=True):
@@ -621,3 +631,8 @@ with tab6:
 
 with tab7:
     render_visualization_tab()
+
+# ── 탭 8: 채널 관리 ──────────────────────────────────────────────────────────
+
+with tab8:
+    render_channel_manager_tab()

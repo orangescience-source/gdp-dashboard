@@ -4,7 +4,8 @@ import os
 import streamlit as st
 import anthropic
 
-from channel_db import CHANNEL_DB
+from channel_manager import get_merged_channel_db
+CHANNEL_DB = get_merged_channel_db()
 from prompts import PROMPT_3_SYSTEM
 from session_state_manager import (
     P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,

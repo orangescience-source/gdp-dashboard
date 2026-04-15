@@ -93,6 +93,9 @@ _DEFAULTS: dict = {
     P6_DESCRIPTION:   "",
     P6_HASHTAGS:      [],
     P6_CONFIRMED:     False,
+    # 채널 관리 (탭8)
+    "ch_menu":        "list",
+    "ch_selected":    "",
 }
 
 
