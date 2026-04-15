@@ -245,11 +245,18 @@ def generate_front_script(
         f"[감정 지도 요약]\n{_emotion_map_to_text(emotion_map)}\n\n"
         f"[미니훅 위치]\n{_mini_hooks_to_text(front_hooks)}\n\n"
         f"[장면 메타]\n{_scene_meta_to_text(front_scenes)}\n\n"
+        "[출력 형식 엄수]\n"
+        "- 헤더(## STAGE), 타임코드([00:00]), 마크다운(*,#,-), 괄호 지문 절대 금지\n"
+        "- 숫자는 모두 한글 독음으로 표기\n"
+        "  예: 2025년→이천이십오 년, 10%→십 퍼센트\n"
+        "- 순수 구어체 문장만 출력\n"
+        "- 최소 5,000자 이상 작성\n"
+        "- 분량 부족 시 즉시 보완하여 계속 작성\n"
     )
     system_prompt = context_block + PROMPT_4_FRONT_SYSTEM
     user_message = (
         f"채널: {channel_name} / 주제: {topic_title} / 제목: {video_title}\n"
-        "앞부분(STAGE 1~4) 대본을 작성하라. 4,500자 이상."
+        "앞부분(STAGE 1~4) 대본을 작성하라. 순수 구어체로 5,000자 이상."
     )
     return _stream_script(system_prompt, user_message, placeholder)
 
@@ -283,11 +290,18 @@ def generate_back_script(
         f"[확정된 대본 구조 — 뒷부분]\n{_structure_to_text(back_stages)}\n\n"
         f"[미니훅 위치 — 뒷부분]\n{_mini_hooks_to_text(back_hooks)}\n\n"
         f"[장면 메타 — 뒷부분]\n{_scene_meta_to_text(back_scenes)}\n\n"
+        "[출력 형식 엄수]\n"
+        "- 헤더(## STAGE), 타임코드([00:00]), 마크다운(*,#,-), 괄호 지문 절대 금지\n"
+        "- 숫자는 모두 한글 독음으로 표기\n"
+        "  예: 2025년→이천이십오 년, 10%→십 퍼센트\n"
+        "- 순수 구어체 문장만 출력\n"
+        "- 최소 5,000자 이상 작성\n"
+        "- 분량 부족 시 즉시 보완하여 계속 작성\n"
     )
     system_prompt = context_block + PROMPT_4_BACK_SYSTEM
     user_message = (
         f"채널: {channel_name} / 주제: {topic_title} / 제목: {video_title}\n"
-        "뒷부분(STAGE 5~8) 대본을 작성하라. 4,500자 이상."
+        "뒷부분(STAGE 5~8) 대본을 작성하라. 순수 구어체로 5,000자 이상."
     )
     return _stream_script(system_prompt, user_message, placeholder)
 
