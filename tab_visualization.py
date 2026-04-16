@@ -8,6 +8,8 @@ import re
 import streamlit as st
 import anthropic
 
+from tab_script import _restore_numbers
+
 from session_state_manager import (
     P1_CHANNEL,
     P4_SCRIPT_FULL,
@@ -290,9 +292,12 @@ def render_visualization_tab():
         stream_placeholder.info("⏳ 이미지 프롬프트를 생성하고 있습니다...")
 
         try:
+            # 이미지 프롬프트용 숫자 복원 (한글독음 → 아라비아 숫자)
+            scene_text_for_image = _restore_numbers(scene_text)
+
             raw_text = _stream_visualization(
                 channel_name=channel_name,
-                scene_text=scene_text,
+                scene_text=scene_text_for_image,
                 num_scenes=num_scenes,
                 placeholder=stream_placeholder,
             )
