@@ -27,6 +27,7 @@ P3_STRUCTURE     = "p3_structure"      # 확정된 8단계 구조 리스트
 P3_EMOTION_MAP   = "p3_emotion_map"    # 확정된 감정 지도 리스트
 P3_MINI_HOOKS    = "p3_mini_hooks"     # 확정된 미니훅 4개 리스트
 P3_SCENE_META    = "p3_scene_meta"     # 확정된 장면 설계 메타 리스트
+P3_HOOK_RESULT   = "p3_hook_result"    # Hook 모듈 설계 결과 (마크다운 텍스트)
 
 # 프롬프트 4: 대본 작성 결과
 P4_RESULT        = "p4_result"         # 하위 호환용 (미사용 시 빈값)
@@ -75,6 +76,7 @@ _DEFAULTS: dict = {
     P3_EMOTION_MAP:   [],
     P3_MINI_HOOKS:    [],
     P3_SCENE_META:    [],
+    P3_HOOK_RESULT:   "",
     # P4
     P4_RESULT:        None,
     P4_SCRIPT_FRONT:  "",

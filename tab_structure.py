@@ -6,11 +6,12 @@ import anthropic
 
 from channel_manager import get_merged_channel_db
 CHANNEL_DB = get_merged_channel_db()
-from prompts import PROMPT_3_SYSTEM
+from prompts import PROMPT_3_SYSTEM, PROMPT_3_HOOK_SYSTEM
 from session_state_manager import (
     P1_CHANNEL, P1_TOPIC_TITLE, P1_CORE_MESSAGE, P1_EMOTION, P1_HOOK,
     P2_TITLE, P2_THUMBNAIL, P2_HOOK_30SEC,
     P3_RESULT, P3_STRUCTURE, P3_EMOTION_MAP, P3_MINI_HOOKS, P3_SCENE_META,
+    P3_HOOK_RESULT,
     render_pipeline_status, render_p1_confirmed_card, render_p2_confirmed_card,
 )
 
@@ -372,6 +373,47 @@ def render_mini_hooks(mini_hooks: list):
 # ──────────────────────────────────────────
 # 메인 탭 렌더링
 # ──────────────────────────────────────────
+# Hook 모듈
+# ──────────────────────────────────────────
+
+def call_claude_hook(
+    channel_name: str,
+    topic_title: str,
+    confirmed_title: str,
+    thumbnail_text: str,
+    hook_30sec: str,
+    placeholder,
+) -> str:
+    """
+    PROMPT_3_HOOK_SYSTEM으로 초반 30초 Hook 설계를 스트리밍 생성한다.
+    placeholder에 실시간 출력 후 완성 텍스트를 반환한다.
+    """
+    user_msg = f"""아래 영상 정보를 바탕으로 초반 30초 Emotional Pulse Hook을 설계해주세요.
+
+채널명: {channel_name}
+주제 제목: {topic_title}
+확정된 유튜브 제목: {confirmed_title}
+썸네일 문구: {thumbnail_text}
+현재 초반 30초 Hook 문장: {hook_30sec}
+
+위 정보를 반영하여 Phase 0~4 전체와 감정곡선 요약 표를 작성하고,
+17개 자체 검증 체크리스트를 모두 통과한 결과만 출력해주세요."""
+
+    client = _get_client()
+    full_text = ""
+    with client.messages.stream(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        system=PROMPT_3_HOOK_SYSTEM,
+        messages=[{"role": "user", "content": user_msg}],
+    ) as stream:
+        for chunk in stream.text_stream:
+            full_text += chunk
+            placeholder.markdown(full_text, unsafe_allow_html=False)
+    return full_text
+
+
+# ──────────────────────────────────────────
 
 def render_structure_tab():
     if not st.session_state.get("p2_title"):
@@ -525,3 +567,71 @@ def render_structure_tab():
             f"8단계 구조 · 감정 지도 {len(emotion_map)}개 · 미니훅 {len(mini_hooks)}개"
         )
         st.balloons()
+
+    # ── 초반 30초 Hook 설계 모듈 ──────────────────
+    st.divider()
+    st.subheader("🎯 초반 30초 Emotional Pulse Hook 설계")
+    st.caption(
+        "5Phase 감정곡선 아키텍처로 시청자가 이탈하지 못하는 오프닝을 설계합니다. "
+        "대본 구조 확정 전후 언제든 생성할 수 있습니다."
+    )
+
+    channel_name = st.session_state.get(P1_CHANNEL, "")
+    topic_title   = st.session_state.get(P1_TOPIC_TITLE, "")
+    confirmed_title = st.session_state.get(P2_TITLE, "")
+    thumbnail_text  = st.session_state.get(P2_THUMBNAIL, "")
+    hook_30sec      = st.session_state.get(P2_HOOK_30SEC, "")
+
+    missing = []
+    if not channel_name:
+        missing.append("채널 (탭2)")
+    if not topic_title:
+        missing.append("주제 (탭2)")
+    if not confirmed_title:
+        missing.append("제목 (탭3)")
+
+    if missing:
+        st.warning(f"⚠️ 먼저 완료해주세요: {', '.join(missing)}")
+    else:
+        col_hook_btn, col_hook_reset = st.columns([3, 1])
+        with col_hook_btn:
+            hook_btn = st.button(
+                "🎨 Hook 설계 생성",
+                type="primary",
+                use_container_width=True,
+                key="p3_hook_generate_btn",
+            )
+        with col_hook_reset:
+            if st.button("🔄 초기화", key="p3_hook_reset_btn"):
+                st.session_state[P3_HOOK_RESULT] = ""
+                st.rerun()
+
+        if hook_btn:
+            hook_placeholder = st.empty()
+            hook_placeholder.info("⏳ Hook 설계를 생성하고 있습니다...")
+            try:
+                hook_text = call_claude_hook(
+                    channel_name=channel_name,
+                    topic_title=topic_title,
+                    confirmed_title=confirmed_title,
+                    thumbnail_text=thumbnail_text,
+                    hook_30sec=hook_30sec,
+                    placeholder=hook_placeholder,
+                )
+                st.session_state[P3_HOOK_RESULT] = hook_text
+                st.success("✅ Hook 설계 완료!")
+            except Exception as e:
+                st.error(f"생성 중 오류: {e}")
+
+        hook_result = st.session_state.get(P3_HOOK_RESULT, "")
+        if hook_result:
+            with st.expander("📋 Hook 설계 결과 보기", expanded=True):
+                st.markdown(hook_result)
+                txt_bytes = hook_result.encode("utf-8")
+                st.download_button(
+                    label="⬇️ TXT 다운로드",
+                    data=txt_bytes,
+                    file_name=f"hook_design_{channel_name}.txt",
+                    mime="text/plain",
+                    key="p3_hook_download",
+                )
