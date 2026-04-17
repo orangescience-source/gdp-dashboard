@@ -17,6 +17,7 @@ from session_state_manager import (
 from youtube_researcher import (
     search_trending_videos,
     format_view_count,
+    format_videos_for_prompt,
     SEARCH_CRITERIA,
 )
 
@@ -112,9 +113,20 @@ def _extract_json(raw: str) -> dict:
 
 
 def call_claude_prompt1(channel_name, benchmark_input, video_length, extra_req,
-                        planning_context=""):
+                        planning_context="", youtube_videos=None):
     persona_block = build_persona_block(channel_name)
-    system_prompt = PROMPT_1_SYSTEM.format(persona_block=persona_block)
+
+    if youtube_videos:
+        youtube_data_block = format_videos_for_prompt(youtube_videos)
+    else:
+        youtube_data_block = (
+            "YouTube API 미사용 — 벤치마킹 입력 정보 기반으로 AI가 추론합니다."
+        )
+
+    system_prompt = PROMPT_1_SYSTEM.format(
+        persona_block=persona_block,
+        youtube_data_block=youtube_data_block,
+    )
 
     planning_section = ""
     if planning_context.strip():
@@ -824,6 +836,7 @@ def render_topic_tab():
                     result = call_claude_prompt1(
                         channel_name, benchmark_input, video_length, extra_req,
                         planning_context,
+                        youtube_videos=st.session_state.get("yt_search_results"),
                     )
                     st.session_state["p1_result"] = result
                     st.session_state[P1_CHANNEL]    = channel_name

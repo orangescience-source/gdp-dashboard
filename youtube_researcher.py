@@ -204,6 +204,10 @@ def search_trending_videos(
                     "comment_count": int(
                         stats.get("commentCount", 0)
                     ),
+                    "description": snippet.get(
+                        "description", ""
+                    )[:300],
+                    "tags": snippet.get("tags", [])[:10],
                 })
 
         except Exception as e:
@@ -228,6 +232,35 @@ def search_trending_videos(
             unique_videos.append(v)
 
     return unique_videos[:max_topics]
+
+
+def format_videos_for_prompt(videos: list) -> str:
+    """YouTube 영상 데이터를 Claude 프롬프트 주입용 텍스트로 변환"""
+    if not videos:
+        return ""
+
+    lines = [f"총 {len(videos)}개 YouTube 상위 영상:\n"]
+    for i, v in enumerate(videos, 1):
+        lines.append(f"[영상 {i}]")
+        lines.append(f"  제목: {v['title']}")
+        lines.append(f"  채널: {v['channel']}")
+        lines.append(
+            f"  조회수: {format_view_count(v['view_count'])}"
+            f" (일평균 {format_view_count(v['daily_views'])}회,"
+            f" {v['days_since']}일 전 업로드)"
+        )
+        likes = v.get("like_count", 0)
+        if likes:
+            lines.append(f"  좋아요: {format_view_count(likes)}")
+        tags = v.get("tags", [])
+        if tags:
+            lines.append(f"  태그: {', '.join(tags[:8])}")
+        desc = v.get("description", "").strip()
+        if desc:
+            lines.append(f"  설명 요약: {desc[:200]}")
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 def format_view_count(count: int) -> str:
