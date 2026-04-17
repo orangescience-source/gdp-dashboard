@@ -69,31 +69,40 @@ def _parse_scenes(raw_text: str) -> list[dict]:
 
 def _extract_scenes_from_script(script: str, num_scenes: int) -> str:
     """
-    전체 대본에서 각 STAGE 도입부를 추출해
-    '씬번호. 씬 요약' 형식의 문자열을 만든다.
+    대본을 num_scenes 단락 단위로 분할하여 씬 목록을 만든다.
+    TTS 순수 구어체 대본(헤더 없음)과 기존 STAGE 헤더 대본 모두 지원한다.
     """
     lines = []
-    # STAGE 헤더 패턴
-    stage_pattern = re.compile(r"\[?STAGE\s*(\d+)[^\]]*\]?[^\n]*", re.IGNORECASE)
-    matches = list(stage_pattern.finditer(script))
-    total = len(matches)
-    if total == 0:
-        # 헤더가 없으면 대본을 num_scenes 등분
-        chunk = max(1, len(script) // num_scenes)
-        for i in range(num_scenes):
-            snippet = script[i * chunk : i * chunk + 200].replace("\n", " ").strip()
-            lines.append(f"{i+1}. {snippet[:120]}")
-        return "\n".join(lines)
 
-    step = max(1, total // num_scenes)
+    # 시각화 메모 분리 — 메모 이후는 씬 추출 대상에서 제외
+    viz_sep = "[시각화 연동 메모]"
+    script_body = script.split(viz_sep)[0].strip()
+
+    # STAGE 헤더 패턴 (기존 대본 호환)
+    stage_pattern = re.compile(r"\[?STAGE\s*(\d+)[^\]]*\]?[^\n]*", re.IGNORECASE)
+    matches = list(stage_pattern.finditer(script_body))
+
+    if matches:
+        # 기존 STAGE 헤더 기반 추출
+        step = max(1, len(matches) // num_scenes)
+        for i in range(num_scenes):
+            idx = min(i * step, len(matches) - 1)
+            m = matches[idx]
+            snippet = script_body[m.end(): m.end() + 200].replace("\n", " ").strip()
+            lines.append(f"{i+1}. {m.group(0).strip()} — {snippet[:100]}")
+        return "\n".join(lines[:num_scenes])
+
+    # TTS 대본 — 단락(빈 줄 기준) 분할 후 균등 배분
+    paragraphs = [p.strip() for p in script_body.split("\n\n") if p.strip()]
+    if not paragraphs:
+        paragraphs = [script_body]
+
+    step = max(1, len(paragraphs) // num_scenes)
     for i in range(num_scenes):
-        idx = min(i * step, total - 1)
-        m = matches[idx]
-        start = m.end()
-        # 해당 STAGE 본문 첫 200자
-        snippet = script[start : start + 200].replace("\n", " ").strip()
-        lines.append(f"{i+1}. {m.group(0).strip()} — {snippet[:100]}")
-    return "\n".join(lines[:num_scenes])
+        idx = min(i * step, len(paragraphs) - 1)
+        snippet = paragraphs[idx].replace("\n", " ")[:150]
+        lines.append(f"{i+1}. {snippet}")
+    return "\n".join(lines)
 
 
 # ──────────────────────────────────────────
@@ -117,13 +126,19 @@ def _stream_visualization(
         image_purpose=image_purpose,
     )
 
-    user_message = f"""아래 {num_scenes}개의 씬에 대해 이미지 생성 프롬프트를 만들어주세요.
+    user_message = f"""아래 씬 목록 전체에 대해 이미지 생성 프롬프트를 생성해주세요.
 
-[씬 목록]
+[씬 목록 — 총 {num_scenes}개]
 {scene_text}
 
-위의 각 씬마다 지정된 출력 형식(번호 / [한국어 번역] / [영어 이미지 프롬프트])으로 작성해주세요.
-총 {num_scenes}개 씬 모두 빠짐없이 작성합니다."""
+출력 규칙:
+- 지정된 형식 고정: 번호 / [한국어 번역] / [영어 이미지 프롬프트]
+- [한국어 번역]: 대본 한글 독음 숫자 그대로 유지
+- [영어 이미지 프롬프트]: 숫자를 아라비아 숫자로 복원
+- STANDARD_SCENE 또는 DATA_SKETCH_SCENE 분류 적용
+- DATA_SKETCH_SCENE은 전체의 25% 이내로 제한
+- 10개마다 "계속 생성할까요?" 확인 후 이어서 생성
+- 대본 내용이 빠짐없이 처리되어야 함"""
 
     client = _get_client()
     full_text = ""

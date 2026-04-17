@@ -15,7 +15,7 @@ from session_state_manager import (
     render_p1_confirmed_card, render_p2_confirmed_card, render_p3_confirmed_card,
 )
 
-_VIZ_SEPARATOR = "## [시각화 연동 메모]"
+_VIZ_SEPARATOR = "[시각화 연동 메모]"
 
 
 # ──────────────────────────────────────────
@@ -189,7 +189,7 @@ def generate_front_script(
     system_prompt = context_block + PROMPT_4_FRONT_SYSTEM
     user_message = (
         f"채널: {channel_name} / 주제: {topic_title} / 제목: {video_title}\n"
-        "앞부분(STAGE 1~4) 대본을 작성하라. 4,500자 이상."
+        "앞부분(HOOK~BODY 2) 대본을 작성하라. TTS 순수 구어체, 숫자 한글 독음, 5,000자 이상."
     )
     return _stream_script(system_prompt, user_message, placeholder)
 
@@ -227,7 +227,8 @@ def generate_back_script(
     system_prompt = context_block + PROMPT_4_BACK_SYSTEM
     user_message = (
         f"채널: {channel_name} / 주제: {topic_title} / 제목: {video_title}\n"
-        "뒷부분(STAGE 5~8) 대본을 작성하라. 4,500자 이상."
+        "뒷부분(BODY 3~END) 대본을 작성하라. TTS 순수 구어체, 숫자 한글 독음, 5,000자 이상."
+        " 완성 후 [시각화 연동 메모] 반드시 첨부."
     )
     return _stream_script(system_prompt, user_message, placeholder)
 
@@ -248,7 +249,7 @@ def _render_result_tabs(front: str, back: str):
     char_count = len(full_body)
     st.info(
         f"📊 현재 대본 분량: **{char_count:,}자** "
-        f"{'✅ 8,000자 이상 달성' if char_count >= 8000 else '⚠️ 목표 8,000자 미달'}"
+        f"{'✅ 10,000자 이상 달성' if char_count >= 10000 else '⚠️ 목표 10,000자 미달'}"
     )
 
     tab_full, tab_edit, tab_viz = st.tabs(["📄 전체 대본", "✏️ 섹션별 편집", "🔗 시각화 메모"])
@@ -348,7 +349,7 @@ def render_script_tab():
 
     with col_front:
         front_btn = st.button(
-            "✍️ 앞부분 생성 (STAGE 1~4)",
+            "✍️ 앞부분 생성 (HOOK~BODY 2)",
             type="primary",
             use_container_width=True,
             disabled=not can_generate,
@@ -358,7 +359,7 @@ def render_script_tab():
     with col_back:
         front_exists = bool(st.session_state.get(P4_SCRIPT_FRONT, ""))
         back_btn = st.button(
-            "✍️ 뒷부분 생성 (STAGE 5~8)",
+            "✍️ 뒷부분 생성 (BODY 3~END)",
             type="primary",
             use_container_width=True,
             disabled=not (can_generate and front_exists),
@@ -374,7 +375,7 @@ def render_script_tab():
         if not can_generate:
             st.error("탭2(주제 발굴)와 탭4(대본 구조)를 먼저 완료해주세요.")
             return
-        st.subheader("✍️ 앞부분 생성 중... (STAGE 1~4)")
+        st.subheader("✍️ 앞부분 생성 중... (HOOK~BODY 2)")
         placeholder = st.empty()
         try:
             with st.spinner("Claude AI가 앞부분 대본을 작성하는 중... (30~60초 소요)"):
@@ -396,7 +397,7 @@ def render_script_tab():
         if not front_text:
             st.warning("⚠️ 앞부분을 먼저 생성해주세요.")
             return
-        st.subheader("✍️ 뒷부분 생성 중... (STAGE 5~8)")
+        st.subheader("✍️ 뒷부분 생성 중... (BODY 3~END)")
         placeholder = st.empty()
         try:
             with st.spinner("Claude AI가 뒷부분 대본을 작성하는 중... (30~60초 소요)"):
@@ -418,7 +419,7 @@ def render_script_tab():
     back_script  = st.session_state.get(P4_SCRIPT_BACK, "")
 
     if front_script:
-        with st.expander("📄 앞부분 대본 (STAGE 1~4) 보기", expanded=False):
+        with st.expander("📄 앞부분 대본 (HOOK~BODY 2) 보기", expanded=False):
             st.text_area(
                 "",
                 value=front_script,
@@ -429,7 +430,7 @@ def render_script_tab():
             st.caption(f"글자수: {len(front_script):,}자")
 
     if back_script:
-        with st.expander("📄 뒷부분 대본 (STAGE 5~8) + 시각화 메모 보기", expanded=False):
+        with st.expander("📄 뒷부분 대본 (BODY 3~END) + 시각화 메모 보기", expanded=False):
             st.text_area(
                 "",
                 value=back_script,
@@ -454,8 +455,8 @@ def render_script_tab():
             delta="목표 10,000자 이상 달성" if total >= 10000 else f"{10000 - total:,}자 부족",
         )
 
-        if total < 8000:
-            st.warning(f"⚠️ 현재 {total:,}자입니다. 8,000자 이상 권장합니다.")
+        if total < 10000:
+            st.warning(f"⚠️ 현재 {total:,}자입니다. 10,000자 이상 달성을 권장합니다.")
 
         if st.button(
             "✅ 대본 확정하고 업로드 패키지 단계로 →",
