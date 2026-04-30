@@ -17,10 +17,13 @@ from tab_script import render_script_tab
 from tab_upload import render_upload_tab
 from tab_visualization import render_visualization_tab
 from session_state_manager import init_session_state, reset_pipeline
+from tab_settings import render_settings_tab
+from tab_analysis import render_analysis_tab
+from tab_ai_insights import render_ai_insights_tab
 
 st.set_page_config(
-    page_title="YouTube 니치 발굴 대시보드",
-    page_icon="🎬",
+    page_title="정치 유튜브 니치 발굴기",
+    page_icon="📡",
     layout="wide",
 )
 
@@ -378,11 +381,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🎬 YouTube 채널 전략 도구")
-st.caption("Claude AI가 분석하는 유튜브 채널 전략 플랫폼")
+st.title("📡 정치 유튜브 니치 발굴기")
+st.caption("YouTube Data API v3 + Claude AI로 고성과 콘텐츠 패턴을 분석합니다.")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
-    ["🔍 니치 발굴", "📊 주제 발굴", "🎨 썸네일·제목", "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지", "🖼️ 시각화 프롬프트"]
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab_set, tab_ana, tab_ai_ins = st.tabs(
+    [
+        "🔍 니치 발굴 (키워드)", "📊 주제 발굴", "🎨 썸네일·제목",
+        "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지", "🖼️ 시각화 프롬프트",
+        "⚙️ 채널 설정", "📊 분석결과", "🤖 AI 인사이트",
+    ]
 )
 
 # ── 사이드바 (니치 발굴 탭용) ─────────────────────────────────────────────────
@@ -640,3 +647,18 @@ with tab6:
 
 with tab7:
     render_visualization_tab()
+
+# ── 탭 8: 채널 설정 (정치 니치 발굴) ─────────────────────────────────────────
+
+with tab_set:
+    render_settings_tab()
+
+# ── 탭 9: 분석결과 ────────────────────────────────────────────────────────────
+
+with tab_ana:
+    render_analysis_tab()
+
+# ── 탭 10: AI 인사이트 ────────────────────────────────────────────────────────
+
+with tab_ai_ins:
+    render_ai_insights_tab()
