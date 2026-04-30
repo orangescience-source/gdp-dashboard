@@ -29,6 +29,16 @@ def _analyze_channel(channel_id: str, multiplier: float, max_videos: int, max_da
     return {"channel_info": info, "videos": videos, "result": result}
 
 
+def _score_badge(score: int) -> str:
+    """점수에 따라 색상 배지 텍스트를 반환합니다."""
+    if score >= 70:
+        return f"🟢 {score}점"
+    elif score >= 40:
+        return f"🟡 {score}점"
+    else:
+        return f"🔴 {score}점"
+
+
 def render_settings_tab():
     st.header("채널 설정")
 
@@ -99,11 +109,10 @@ def render_settings_tab():
             search_clicked = st.button("채널 검색", type="primary")
 
         if search_clicked and keyword:
-            with st.spinner(f'"{keyword}" 채널 검색 중 (최대 50개)...'):
+            with st.spinner(f'"{keyword}" 채널 검색 및 점수 계산 중...'):
                 try:
                     channels = search_political_channels(keyword, max_results=50)
                     st.session_state["search_channels"] = channels
-                    # 새 검색 시 모든 체크박스 key 초기화
                     for ch in channels:
                         st.session_state[f"chk_{ch['channel_id']}"] = False
                 except Exception as e:
@@ -112,16 +121,15 @@ def render_settings_tab():
         selected_ids: list[str] = []
 
         if "search_channels" in st.session_state:
-            channels = st.session_state["search_channels"]
+            channels: list[dict] = st.session_state["search_channels"]
             if not channels:
                 st.warning("검색 결과가 없습니다.")
             else:
-                st.write(f"**검색 결과 {len(channels)}개** — 분석할 채널을 선택하세요.")
+                st.write(f"**검색 결과 {len(channels)}개** (우선순위 점수 순) — 분석할 채널을 선택하세요.")
 
                 col_all, col_none = st.columns([1, 1])
                 with col_all:
                     if st.button("전체 선택", use_container_width=True):
-                        # 체크박스 key를 직접 설정해야 위젯에 반영됨
                         for ch in channels:
                             st.session_state[f"chk_{ch['channel_id']}"] = True
                         st.rerun()
@@ -131,25 +139,27 @@ def render_settings_tab():
                             st.session_state[f"chk_{ch['channel_id']}"] = False
                         st.rerun()
 
-                with st.container(height=360):
+                with st.container(height=420):
                     for ch in channels:
                         col_chk, col_thumb, col_info = st.columns([0.5, 1, 6])
                         with col_chk:
                             st.write("")
-                            # key로 session_state와 자동 동기화
-                            st.checkbox(
-                                label="",
-                                key=f"chk_{ch['channel_id']}",
-                            )
+                            st.checkbox(label="", key=f"chk_{ch['channel_id']}")
                         with col_thumb:
                             if ch.get("thumbnail"):
                                 st.image(ch["thumbnail"], width=48)
                         with col_info:
-                            st.write(f"**{ch['title']}**")
-                            if ch.get("description"):
-                                st.caption(ch["description"][:80] + ("..." if len(ch["description"]) > 80 else ""))
+                            score = ch.get("score", 0)
+                            badge = _score_badge(score)
+                            subs = ch.get("subscriber_count", 0)
+                            subs_str = (
+                                f"{subs // 10000}만명" if subs >= 10000 else f"{subs:,}명"
+                            )
+                            st.write(f"**{ch['title']}** &nbsp; {badge}")
+                            reasons = ch.get("score_reasons", [])
+                            reason_text = " · ".join(reasons) if reasons else "정보 없음"
+                            st.caption(f"구독자 {subs_str} · {reason_text}")
 
-                # 체크박스 key에서 선택된 ID 수집
                 selected_ids = [
                     ch["channel_id"]
                     for ch in channels
@@ -177,7 +187,10 @@ def render_settings_tab():
                     (c["title"] for c in st.session_state.get("search_channels", []) if c["channel_id"] == cid),
                     cid,
                 )
-                progress.progress((i) / len(selected_ids), text=f"분석 중: {ch_name} ({i+1}/{len(selected_ids)})")
+                progress.progress(
+                    i / len(selected_ids),
+                    text=f"분석 중: {ch_name} ({i + 1}/{len(selected_ids)})",
+                )
                 data = _analyze_channel(
                     cid,
                     multiplier=params["multiplier"],
@@ -191,7 +204,6 @@ def render_settings_tab():
 
             if multi_results:
                 st.session_state["multi_results"] = multi_results
-                # 단일 채널 호환용 (분석결과 탭에서 fallback)
                 st.session_state["channel_info"] = multi_results[0]["channel_info"]
                 st.session_state["analysis_result"] = multi_results[0]["result"]
                 st.session_state["analysis_params"] = params

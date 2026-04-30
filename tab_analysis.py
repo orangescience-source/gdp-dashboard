@@ -7,7 +7,6 @@ import streamlit as st
 
 
 def _view_bar_chart(df_classified: pd.DataFrame, avg_views: float, multiplier: float) -> go.Figure:
-    """조회수 분포 bar chart를 생성합니다."""
     df = df_classified.copy().reset_index(drop=True)
     df["color"] = df["is_niche"].map({True: "니치 영상", False: "일반 영상"})
     df["short_title"] = df["title"].str[:30] + "..."
@@ -40,7 +39,6 @@ def _view_bar_chart(df_classified: pd.DataFrame, avg_views: float, multiplier: f
 
 
 def _niche_video_card(row: pd.Series):
-    """니치 영상 카드 UI를 렌더링합니다."""
     with st.container():
         img_col, info_col = st.columns([1, 3])
         with img_col:
@@ -58,7 +56,6 @@ def _niche_video_card(row: pd.Series):
 
 
 def _render_single_channel(channel_info: dict, result: dict, params: dict):
-    """단일 채널 분석 결과를 렌더링합니다."""
     df_niche = result["df_niche"]
     df_classified = result["df_classified"]
     avg_views = result["avg_views"]
@@ -88,7 +85,11 @@ def _render_single_channel(channel_info: dict, result: dict, params: dict):
     sort_col = st.selectbox(
         "정렬 기준",
         ["ratio", "view_count", "days_ago"],
-        format_func=lambda x: {"ratio": "평균 대비 배수", "view_count": "조회수", "days_ago": "최신순"}[x],
+        format_func=lambda x: {
+            "ratio": "평균 대비 배수",
+            "view_count": "조회수",
+            "days_ago": "최신순",
+        }[x],
         key=f"sort_{channel_info['channel_id']}",
     )
     ascending = sort_col == "days_ago"
@@ -122,7 +123,7 @@ def render_analysis_tab():
     params = st.session_state.get("analysis_params", {})
     multi_results: list[dict] = st.session_state.get("multi_results", [])
 
-    # 단일 채널 (직접 입력 또는 1개 선택)
+    # ── 단일 채널 ─────────────────────────────────────────────────────────────
     if len(multi_results) <= 1:
         channel_info = st.session_state.get("channel_info", {})
         result = st.session_state.get("analysis_result", {})
@@ -130,32 +131,59 @@ def render_analysis_tab():
         _render_single_channel(channel_info, result, params)
         return
 
-    # 다중 채널 — 채널별 탭으로 구분
+    # ── 다중 채널 ─────────────────────────────────────────────────────────────
     st.header(f"📊 분석 결과 — {len(multi_results)}개 채널")
 
-    # 요약 비교표
+    # 채널별 요약 비교표 (전체 표시, 니치 0개는 회색)
     with st.expander("채널별 요약 비교", expanded=True):
         summary_rows = []
         for d in multi_results:
             info = d["channel_info"]
             res = d["result"]
+            niche_count = res["niche_count"]
+            total_count = res["total_count"]
             summary_rows.append({
                 "채널명": info["title"],
-                "분석 영상": res["total_count"],
-                "니치 영상": res["niche_count"],
-                "니치 비율(%)": round(res["niche_count"] / res["total_count"] * 100, 1) if res["total_count"] else 0,
+                "분석 영상": total_count,
+                "니치 영상": niche_count,
+                "니치 비율(%)": round(niche_count / total_count * 100, 1) if total_count else 0,
                 "평균 조회수": f"{res['avg_views']:,.0f}",
+                "상태": "✅ 니치 발견" if niche_count > 0 else "⬜ 니치 없음",
             })
-        st.dataframe(summary_rows, use_container_width=True, hide_index=True)
 
-    # 채널별 탭
-    tab_labels = [d["channel_info"]["title"][:20] for d in multi_results]
+        df_summary = pd.DataFrame(summary_rows)
+
+        def _row_style(row):
+            if row["니치 영상"] == 0:
+                return ["color: #aaaaaa"] * len(row)
+            return [""] * len(row)
+
+        st.dataframe(
+            df_summary.style.apply(_row_style, axis=1),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    # 니치 영상 1개 이상인 채널만 탭으로 표시
+    niche_results = [d for d in multi_results if d["result"]["niche_count"] > 0]
+
+    if not niche_results:
+        st.warning(
+            "분석한 채널 중 니치 영상이 발견된 채널이 없습니다. "
+            "기준 배수를 낮추거나 분석 기간을 늘려보세요."
+        )
+        return
+
+    excluded = len(multi_results) - len(niche_results)
+    if excluded > 0:
+        st.info(f"니치 영상이 없는 채널 **{excluded}개**는 탭에서 제외되었습니다. (위 표의 ⬜ 채널)")
+
+    tab_labels = [d["channel_info"]["title"][:20] for d in niche_results]
     channel_tabs = st.tabs(tab_labels)
 
-    for tab, data in zip(channel_tabs, multi_results):
+    for tab, data in zip(channel_tabs, niche_results):
         with tab:
             info = data["channel_info"]
-            # 채널 헤더
             h_col1, h_col2 = st.columns([1, 6])
             with h_col1:
                 if info.get("thumbnail"):
