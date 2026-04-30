@@ -103,7 +103,9 @@ def render_settings_tab():
                 try:
                     channels = search_political_channels(keyword, max_results=50)
                     st.session_state["search_channels"] = channels
-                    st.session_state["selected_channel_ids"] = []
+                    # 새 검색 시 모든 체크박스 key 초기화
+                    for ch in channels:
+                        st.session_state[f"chk_{ch['channel_id']}"] = False
                 except Exception as e:
                     st.error(f"검색 오류: {e}")
 
@@ -119,24 +121,24 @@ def render_settings_tab():
                 col_all, col_none = st.columns([1, 1])
                 with col_all:
                     if st.button("전체 선택", use_container_width=True):
-                        st.session_state["selected_channel_ids"] = [
-                            ch["channel_id"] for ch in channels
-                        ]
+                        # 체크박스 key를 직접 설정해야 위젯에 반영됨
+                        for ch in channels:
+                            st.session_state[f"chk_{ch['channel_id']}"] = True
+                        st.rerun()
                 with col_none:
                     if st.button("전체 해제", use_container_width=True):
-                        st.session_state["selected_channel_ids"] = []
-
-                saved_ids: list[str] = st.session_state.get("selected_channel_ids", [])
+                        for ch in channels:
+                            st.session_state[f"chk_{ch['channel_id']}"] = False
+                        st.rerun()
 
                 with st.container(height=360):
                     for ch in channels:
-                        checked = ch["channel_id"] in saved_ids
                         col_chk, col_thumb, col_info = st.columns([0.5, 1, 6])
                         with col_chk:
                             st.write("")
-                            new_val = st.checkbox(
+                            # key로 session_state와 자동 동기화
+                            st.checkbox(
                                 label="",
-                                value=checked,
                                 key=f"chk_{ch['channel_id']}",
                             )
                         with col_thumb:
@@ -147,13 +149,12 @@ def render_settings_tab():
                             if ch.get("description"):
                                 st.caption(ch["description"][:80] + ("..." if len(ch["description"]) > 80 else ""))
 
-                        if new_val and ch["channel_id"] not in saved_ids:
-                            saved_ids.append(ch["channel_id"])
-                        elif not new_val and ch["channel_id"] in saved_ids:
-                            saved_ids.remove(ch["channel_id"])
-
-                st.session_state["selected_channel_ids"] = saved_ids
-                selected_ids = saved_ids
+                # 체크박스 key에서 선택된 ID 수집
+                selected_ids = [
+                    ch["channel_id"]
+                    for ch in channels
+                    if st.session_state.get(f"chk_{ch['channel_id']}", False)
+                ]
                 st.info(f"선택된 채널: **{len(selected_ids)}개**")
 
         st.divider()
