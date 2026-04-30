@@ -73,7 +73,7 @@ def search_political_channels(keyword: str, max_results: int = 10) -> list[dict]
             part="snippet",
             q=keyword,
             type="channel",
-            maxResults=max_results,
+            maxResults=min(max_results, 50),
             relevanceLanguage="ko",
             regionCode="KR",
         ).execute()
@@ -121,87 +121,167 @@ def get_channel_info(channel_id: str) -> dict:
 
 
 def get_channel_videos(channel_id: str, max_results: int = 200) -> list[dict]:
-    """채널의 최근 영상 목록을 가져옵니다 (최대 200개)."""
+    """채널의 최근 영상 목록을 가져옵니다 (최대 200개).
+
+    1단계: channels().list(contentDetails)로 uploads 플레이리스트 ID 취득
+    2단계: playlistItems().list()로 영상 ID 수집
+    3단계: playlistItems 404 발생 시 search().list()로 폴백
+    """
+    if not channel_id:
+        raise ValueError("채널 ID가 비어 있습니다.")
+
     try:
         youtube = _build_client()
 
-        # uploads 플레이리스트 ID 가져오기
+        # ── 1단계: channels API로 uploads 플레이리스트 ID 취득 ─────────────
         ch_resp = youtube.channels().list(
             part="contentDetails",
             id=channel_id,
         ).execute()
+
         items = ch_resp.get("items", [])
         if not items:
             raise ValueError(f"채널을 찾을 수 없습니다: {channel_id}")
 
-        uploads_id = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        uploads_id = (
+            items[0]
+            .get("contentDetails", {})
+            .get("relatedPlaylists", {})
+            .get("uploads", "")
+        )
 
-        videos = []
-        page_token = None
-        fetched = 0
+        if not uploads_id:
+            # uploads 플레이리스트가 없는 채널 → search API로 직접 수집
+            return _fetch_videos_via_search(youtube, channel_id, max_results)
 
-        while fetched < max_results:
-            batch = min(50, max_results - fetched)
+        # ── 2단계: playlistItems로 영상 수집 ─────────────────────────────
+        return _fetch_videos_from_playlist(youtube, uploads_id, channel_id, max_results)
+
+    except HttpError as e:
+        raise RuntimeError(f"영상 목록 조회 실패: {e}") from e
+
+
+def _fetch_videos_from_playlist(
+    youtube, uploads_id: str, channel_id: str, max_results: int
+) -> list[dict]:
+    """playlistItems API로 업로드 목록을 수집합니다. 404 시 search API로 폴백."""
+    videos: list[dict] = []
+    page_token = None
+    fetched = 0
+
+    while fetched < max_results:
+        batch = min(50, max_results - fetched)
+        try:
             pl_resp = youtube.playlistItems().list(
-                part="snippet,contentDetails",
+                part="contentDetails",
                 playlistId=uploads_id,
                 maxResults=batch,
                 pageToken=page_token,
             ).execute()
+        except HttpError as e:
+            if int(e.resp.status) == 404:
+                # 플레이리스트 접근 불가 → search API 폴백
+                return _fetch_videos_via_search(youtube, channel_id, max_results)
+            raise
 
-            video_ids = [
-                item["contentDetails"]["videoId"]
-                for item in pl_resp.get("items", [])
-            ]
+        video_ids = [
+            item["contentDetails"]["videoId"]
+            for item in pl_resp.get("items", [])
+            if item.get("contentDetails", {}).get("videoId")
+        ]
 
-            if not video_ids:
-                break
+        if not video_ids:
+            break
 
-            # 조회수 등 상세 정보 일괄 조회
-            stats_resp = youtube.videos().list(
-                part="statistics,snippet",
-                id=",".join(video_ids),
+        videos.extend(_fetch_video_details(youtube, video_ids))
+
+        fetched += len(video_ids)
+        page_token = pl_resp.get("nextPageToken")
+        if not page_token:
+            break
+
+    videos.sort(key=lambda v: v["published_at"], reverse=True)
+    return videos
+
+
+def _fetch_videos_via_search(
+    youtube, channel_id: str, max_results: int
+) -> list[dict]:
+    """search API로 채널의 최신 영상 ID를 수집합니다 (폴백 전용)."""
+    videos: list[dict] = []
+    page_token = None
+    fetched = 0
+
+    while fetched < max_results:
+        batch = min(50, max_results - fetched)
+        try:
+            search_resp = youtube.search().list(
+                part="id",
+                channelId=channel_id,
+                type="video",
+                order="date",
+                maxResults=batch,
+                pageToken=page_token,
             ).execute()
+        except HttpError:
+            break
 
-            for item in stats_resp.get("items", []):
-                snippet = item["snippet"]
-                stats = item.get("statistics", {})
-                published_at = snippet.get("publishedAt", "")
-                pub_dt = (
-                    datetime.fromisoformat(published_at.replace("Z", "+00:00"))
-                    if published_at
-                    else None
-                )
-                days_ago = (
-                    (datetime.now(timezone.utc) - pub_dt).days
-                    if pub_dt
-                    else None
-                )
-                videos.append({
-                    "video_id": item["id"],
-                    "title": snippet.get("title", ""),
-                    "published_at": published_at,
-                    "pub_dt": pub_dt,
-                    "days_ago": days_ago,
-                    "view_count": int(stats.get("viewCount", 0)),
-                    "like_count": int(stats.get("likeCount", 0)),
-                    "comment_count": int(stats.get("commentCount", 0)),
-                    "thumbnail": (
-                        snippet.get("thumbnails", {})
-                        .get("medium", {})
-                        .get("url", "")
-                    ),
-                    "url": f"https://www.youtube.com/watch?v={item['id']}",
-                })
+        video_ids = [
+            item["id"]["videoId"]
+            for item in search_resp.get("items", [])
+            if item.get("id", {}).get("videoId")
+        ]
 
-            fetched += len(video_ids)
-            page_token = pl_resp.get("nextPageToken")
-            if not page_token:
-                break
+        if not video_ids:
+            break
 
-        # 최신순 정렬
-        videos.sort(key=lambda v: v["published_at"], reverse=True)
-        return videos
+        videos.extend(_fetch_video_details(youtube, video_ids))
 
-    except HttpError as e:
-        raise RuntimeError(f"영상 목록 조회 실패: {e}") from e
+        fetched += len(video_ids)
+        page_token = search_resp.get("nextPageToken")
+        if not page_token:
+            break
+
+    videos.sort(key=lambda v: v["published_at"], reverse=True)
+    return videos
+
+
+def _fetch_video_details(youtube, video_ids: list[str]) -> list[dict]:
+    """videos.list API로 영상 상세 정보(통계+스니펫)를 일괄 조회합니다."""
+    resp = youtube.videos().list(
+        part="statistics,snippet",
+        id=",".join(video_ids),
+    ).execute()
+
+    result = []
+    for item in resp.get("items", []):
+        snippet = item.get("snippet", {})
+        stats = item.get("statistics", {})
+        published_at = snippet.get("publishedAt", "")
+        pub_dt = (
+            datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+            if published_at
+            else None
+        )
+        days_ago = (
+            (datetime.now(timezone.utc) - pub_dt).days
+            if pub_dt
+            else None
+        )
+        result.append({
+            "video_id": item["id"],
+            "title": snippet.get("title", ""),
+            "published_at": published_at,
+            "pub_dt": pub_dt,
+            "days_ago": days_ago,
+            "view_count": int(stats.get("viewCount", 0)),
+            "like_count": int(stats.get("likeCount", 0)),
+            "comment_count": int(stats.get("commentCount", 0)),
+            "thumbnail": (
+                snippet.get("thumbnails", {})
+                .get("medium", {})
+                .get("url", "")
+            ),
+            "url": f"https://www.youtube.com/watch?v={item['id']}",
+        })
+    return result
