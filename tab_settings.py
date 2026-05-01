@@ -44,7 +44,7 @@ def render_settings_tab():
 
     input_method = st.radio(
         "채널 입력 방식",
-        ["직접 입력 (URL 또는 채널 ID)", "키워드로 채널 검색"],
+        ["키워드로 채널 검색", "직접 입력 (URL 또는 채널 ID)"],
         horizontal=True,
     )
 
