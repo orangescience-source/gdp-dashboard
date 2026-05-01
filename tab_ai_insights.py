@@ -1,8 +1,37 @@
 """🤖 AI 인사이트 탭 - Claude API로 니치 영상 패턴 분석 및 주제 제안."""
 
+import io
+from datetime import datetime
+
+import pandas as pd
 import streamlit as st
 
 from ai_analyzer import stream_analyze_niche_videos
+
+
+def _build_ai_excel(channel_info: dict, analysis_text: str, niche_titles: list[str], multiplier: float) -> bytes:
+    """AI 분석 결과를 엑셀 파일로 생성합니다."""
+    output = io.BytesIO()
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        pd.DataFrame({
+            "항목": ["채널명", "분석일자", "기준배수", "니치영상수", "분석결과"],
+            "내용": [
+                channel_info.get("title", ""),
+                today,
+                f"{multiplier}x",
+                len(niche_titles),
+                analysis_text,
+            ],
+        }).to_excel(writer, sheet_name="AI 분석 결과", index=False)
+
+        pd.DataFrame({
+            "번호": range(1, len(niche_titles) + 1),
+            "니치 영상 제목": niche_titles,
+        }).to_excel(writer, sheet_name="니치 영상 목록", index=False)
+
+    return output.getvalue()
 
 
 def _render_ai_for_channel(channel_info: dict, result: dict, params: dict, key_suffix: str = ""):
@@ -48,13 +77,27 @@ def _render_ai_for_channel(channel_info: dict, result: dict, params: dict, key_s
     elif result_key in st.session_state:
         st.markdown(st.session_state[result_key])
         st.divider()
-        st.download_button(
-            label="분석 결과 다운로드",
-            data=st.session_state[result_key].encode("utf-8"),
-            file_name=f"ai_insight_{channel_info.get('title', 'channel')}.md",
-            mime="text/markdown",
-            key=f"dl_{key_suffix}",
-        )
+        today = datetime.now().strftime("%Y%m%d")
+        ch_name = channel_info.get("title", "channel")
+        dl_col1, dl_col2 = st.columns(2)
+        with dl_col1:
+            st.download_button(
+                label="📥 AI 분석 결과 다운로드 (Excel)",
+                data=_build_ai_excel(channel_info, st.session_state[result_key], niche_titles, multiplier),
+                file_name=f"시사콘텐츠_AI인사이트_{ch_name}_{today}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key=f"dl_excel_{key_suffix}",
+            )
+        with dl_col2:
+            st.download_button(
+                label="📄 마크다운 다운로드",
+                data=st.session_state[result_key].encode("utf-8"),
+                file_name=f"ai_insight_{ch_name}.md",
+                mime="text/markdown",
+                use_container_width=True,
+                key=f"dl_{key_suffix}",
+            )
 
 
 def render_ai_insights_tab():

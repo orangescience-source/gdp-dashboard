@@ -1,9 +1,55 @@
 """📊 분석결과 탭 - 니치 영상 카드 목록 및 조회수 분포 차트."""
 
+import io
+from datetime import datetime
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+
+
+def _build_full_excel(multi_results: list[dict]) -> bytes:
+    """전체 채널 니치 영상을 두 시트로 구성한 엑셀 파일을 생성합니다."""
+    output = io.BytesIO()
+
+    # 시트 1: 전체 니치 영상 목록 (채널명 포함)
+    all_rows = []
+    for d in multi_results:
+        ch_title = d["channel_info"]["title"]
+        df_niche = d["result"]["df_niche"]
+        if not df_niche.empty:
+            df_copy = df_niche[
+                ["title", "view_count", "ratio", "like_count", "comment_count", "days_ago", "url"]
+            ].copy()
+            df_copy.insert(0, "채널명", ch_title)
+            all_rows.append(df_copy)
+
+    # 시트 2: 채널별 요약
+    summary_rows = []
+    for d in multi_results:
+        info = d["channel_info"]
+        res = d["result"]
+        niche_count = res["niche_count"]
+        total_count = res["total_count"]
+        summary_rows.append({
+            "채널명": info["title"],
+            "분석 영상": total_count,
+            "니치 영상": niche_count,
+            "니치 비율(%)": round(niche_count / total_count * 100, 1) if total_count else 0,
+            "평균 조회수": round(res["avg_views"]),
+            "상태": "니치 발견" if niche_count > 0 else "니치 없음",
+        })
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        if all_rows:
+            pd.concat(all_rows, ignore_index=True).rename(columns={
+                "title": "제목", "view_count": "조회수", "ratio": "평균대비배수",
+                "like_count": "좋아요", "comment_count": "댓글", "days_ago": "경과일", "url": "URL",
+            }).to_excel(writer, sheet_name="전체 니치 영상", index=False)
+        pd.DataFrame(summary_rows).to_excel(writer, sheet_name="채널별 요약", index=False)
+
+    return output.getvalue()
 
 
 def _view_bar_chart(df_classified: pd.DataFrame, avg_views: float, multiplier: float) -> go.Figure:
@@ -173,6 +219,17 @@ def render_analysis_tab():
             "기준 배수를 낮추거나 분석 기간을 늘려보세요."
         )
         return
+
+    # 전체 니치 영상 엑셀 다운로드
+    today = datetime.now().strftime("%Y%m%d")
+    excel_data = _build_full_excel(multi_results)
+    st.download_button(
+        label="📥 전체 니치 영상 다운로드 (Excel)",
+        data=excel_data,
+        file_name=f"시사콘텐츠_니치영상_전체_{today}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
 
     excluded = len(multi_results) - len(niche_results)
     if excluded > 0:
