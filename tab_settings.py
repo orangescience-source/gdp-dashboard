@@ -97,21 +97,22 @@ def render_settings_tab():
 
     # ── 키워드 검색 (다중 선택) ───────────────────────────────────────────────
     else:
-        col_kw, col_btn = st.columns([3, 1])
-        with col_kw:
-            keyword = st.text_input(
-                "검색 키워드",
-                placeholder="예: 한국 정치, 시사, 국회",
-                value="한국 정치",
-            )
-        with col_btn:
-            st.write("")
-            search_clicked = st.button("채널 검색", type="primary")
+        keyword = st.text_input(
+            "검색 키워드",
+            placeholder="예: 한국 정치, 시사, 국회",
+            value="한국 정치",
+        )
+        max_search = st.select_slider(
+            "검색할 채널 수",
+            options=[10, 20, 30, 40, 50],
+            value=50,
+        )
+        search_clicked = st.button("채널 검색", type="primary", use_container_width=True)
 
         if search_clicked and keyword:
             with st.spinner(f'"{keyword}" 채널 검색 및 점수 계산 중...'):
                 try:
-                    channels = search_political_channels(keyword, max_results=50)
+                    channels = search_political_channels(keyword, max_results=max_search)
                     st.session_state["search_channels"] = channels
                     for ch in channels:
                         st.session_state[f"chk_{ch['channel_id']}"] = False
