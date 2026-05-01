@@ -306,6 +306,18 @@ def render_thumbnail_tab():
         st.info("📊 탭2에서 주제를 먼저 확정해주세요.")
         st.stop()
 
+    # Stage 4 자동 입력 안내
+    if st.session_state.get("_autofill_stage4_applied"):
+        _s4_src = st.session_state.get(
+            "_autofill_stage4_source",
+            st.session_state.get("p1_topic_title", ""),
+        )
+        st.info(
+            f"🔗 **이전 단계(주제 발굴)에서 자동 입력됨** — 주제: '{_s4_src}'\n\n"
+            "채널, 주제, 핵심 메시지, 타겟 감정 등이 자동으로 채워져 있습니다. "
+            "확인 후 필요시 수정하세요."
+        )
+
     # 진행 상태 바
     render_pipeline_status()
 

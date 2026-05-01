@@ -541,6 +541,22 @@ def export_to_excel(result: dict, channel_name: str, benchmark_input: str) -> by
 
 def render_topic_tab():
     render_pipeline_status()
+
+    # Stage 1 자동 입력 안내 배너
+    if st.session_state.get("_autofill_stage1_applied"):
+        _s1_src = st.session_state.get("_autofill_stage1_source", "")
+        _s1_info_col, _s1_dismiss_col = st.columns([5, 1])
+        with _s1_info_col:
+            st.info(
+                f"🔗 **이전 단계(니치 발굴)에서 자동 입력됨** — 니치: '{_s1_src}'\n\n"
+                "벤치마킹 대상, 영상 주제, 핵심 메시지가 자동으로 채워져 있습니다. "
+                "확인 후 필요시 수정하세요."
+            )
+        with _s1_dismiss_col:
+            if st.button("✕ 닫기", key="_dismiss_stage1_banner"):
+                st.session_state["_autofill_stage1_applied"] = False
+                st.rerun()
+
     st.header("📊 트렌드 기반 주제 발굴 & 경쟁 분석기")
     st.caption("Claude AI가 채널 페르소나에 맞게 차별화 주제 5가지를 도출합니다.")
 
@@ -678,6 +694,31 @@ def render_topic_tab():
                     )
                     st.rerun()
 
+        # Stage 2: 최상위 영상 자동 적용
+        st.divider()
+        _s2_col, _s2_btn_col = st.columns([3, 1])
+        with _s2_col:
+            _apply_stage2 = st.checkbox(
+                "상위 영상을 벤치마킹 대상에 자동으로 적용",
+                value=False,
+                key="_stage2_checkbox",
+            )
+        with _s2_btn_col:
+            _stage2_btn = st.button(
+                "🔍 자동 적용 →",
+                use_container_width=True,
+                disabled=not _apply_stage2,
+                key="_stage2_apply_btn",
+            )
+        if _stage2_btn and _apply_stage2 and videos:
+            _top_video = videos[0]
+            st.session_state["p1_benchmark_input"] = _top_video["url"]
+            st.session_state["benchmark_input"] = _top_video["url"]
+            st.session_state["benchmark_title"] = _top_video["title"]
+            st.session_state["_autofill_stage2_applied"] = True
+            st.session_state["_autofill_stage2_source"] = _top_video["title"]
+            st.rerun()
+
     st.divider()
 
     # ── 기획 입력 폼 ────────────────────────────────────────────────────────────
@@ -699,6 +740,23 @@ def render_topic_tab():
     ]
 
     with st.expander("📋 기획 정보 입력 (클릭하여 펼치기)", expanded=True):
+        # 자동 입력 안내
+        _autofill_flags = [
+            ("_autofill_stage1_applied", "_autofill_stage1_source", "니치 발굴"),
+            ("_autofill_stage2_applied", "_autofill_stage2_source", "YouTube 영상"),
+            ("_autofill_stage3_applied", "_autofill_stage3_source", "AI 분석 결과"),
+        ]
+        _active_sources = [
+            f"{label} ({st.session_state.get(src_key, '')[:20]})"
+            for flag_key, src_key, label in _autofill_flags
+            if st.session_state.get(flag_key)
+        ]
+        if _active_sources:
+            st.info(
+                f"🔗 **이전 단계에서 자동 입력됨** — 출처: {', '.join(_active_sources)}\n\n"
+                "값을 직접 수정할 수 있습니다."
+            )
+
         col_a, col_b = st.columns(2)
 
         with col_a:
@@ -921,6 +979,45 @@ def render_topic_tab():
                         """
                     )
 
+    # ── Stage 3: AI 분석 결과 → 기획 정보 자동 연결 ──────────────────────────
+    if st.session_state.get("p1_result"):
+        _r3 = st.session_state.get("p1_result", {})
+        _top_pick3 = _r3.get("top_pick", {})
+        _top_rank3 = _top_pick3.get("rank", 1)
+        _topics3 = _r3.get("topics", [])
+        _top_topic3 = next(
+            (t for t in _topics3 if t.get("rank") == _top_rank3),
+            _topics3[0] if _topics3 else {},
+        )
+
+        if _top_topic3:
+            with st.expander("🔗 AI 분석 결과를 기획 정보에 자동 적용", expanded=False):
+                st.write(
+                    f"최우선 추천 주제 **'{_top_topic3.get('title', '')}'** 의 "
+                    "분석 결과를 기획 정보 입력 필드에 자동으로 채웁니다."
+                )
+                _s3_col, _s3_btn_col = st.columns([3, 1])
+                with _s3_col:
+                    _apply_stage3 = st.checkbox(
+                        "이 분석 결과를 기획 정보에 자동 적용",
+                        value=True,
+                        key="_stage3_checkbox",
+                    )
+                with _s3_btn_col:
+                    _stage3_btn = st.button(
+                        "📋 기획 정보에 적용 →",
+                        use_container_width=True,
+                        disabled=not _apply_stage3,
+                        key="_stage3_apply_btn",
+                    )
+                if _stage3_btn and _apply_stage3:
+                    st.session_state["planning_topic"] = _top_topic3.get("title", "")
+                    st.session_state["planning_message"] = _top_topic3.get("core_message", "")
+                    st.session_state["planning_emotion"] = _top_topic3.get("target_emotion", "")
+                    st.session_state["_autofill_stage3_applied"] = True
+                    st.session_state["_autofill_stage3_source"] = _top_topic3.get("title", "")
+                    st.rerun()
+
     # ── 확정 버튼 (전체 너비, 컬럼 외부) ──────────────────────────────────────
     if st.session_state.get("p1_result"):
         st.divider()
@@ -931,6 +1028,13 @@ def render_topic_tab():
             selected = st.session_state.get(P1_TOPIC_TITLE, "")
             st.success(f"✅ 선택된 주제: **{selected}**")
 
+            # Stage 4: 확정 시 썸네일 탭 자동 연결 여부
+            _apply_stage4 = st.checkbox(
+                "확정 시 썸네일·제목 탭에 자동으로 연결",
+                value=True,
+                key="_stage4_checkbox",
+            )
+
             if st.button(
                 "✅ 이 주제로 확정하고 썸네일·제목 단계로 →",
                 type="primary",
@@ -938,6 +1042,9 @@ def render_topic_tab():
                 key="confirm_topic",
             ):
                 st.session_state["p1_confirmed"] = True
+                if _apply_stage4:
+                    st.session_state["_autofill_stage4_applied"] = True
+                    st.session_state["_autofill_stage4_source"] = selected
                 st.info("👆 상단에서 **🎨 썸네일·제목** 탭을 클릭하세요.")
                 st.rerun()
 
