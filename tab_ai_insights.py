@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from ai_analyzer import stream_analyze_niche_videos
+from ai_analyzer import analyze_niche_videos, stream_analyze_niche_videos
 
 
 def _build_ai_excel(channel_info: dict, analysis_text: str, niche_titles: list[str], multiplier: float) -> bytes:
@@ -70,9 +70,33 @@ def _render_ai_for_channel(channel_info: dict, result: dict, params: dict, key_s
                 st.success("분석 완료!")
 
             except ValueError as e:
+                placeholder.empty()
                 st.error(f"API 키 오류: {e}")
-            except Exception as e:
-                st.error(f"AI 분석 오류: {e}")
+
+            except Exception as stream_err:
+                if full_text:
+                    # 부분 결과가 있으면 표시하고 저장
+                    placeholder.markdown(full_text)
+                    st.session_state[result_key] = full_text
+                    st.warning(
+                        f"스트리밍이 중간에 중단되었습니다. 수신된 내용까지 표시합니다. "
+                        f"({stream_err})"
+                    )
+                else:
+                    # 수신된 내용이 없으면 non-streaming 방식으로 재시도
+                    placeholder.empty()
+                    st.warning("스트리밍 연결 실패. 일반 방식으로 재시도합니다...")
+                    try:
+                        result_text = analyze_niche_videos(
+                            niche_titles,
+                            multiplier=multiplier,
+                            channel_name=channel_info.get("title", ""),
+                        )
+                        st.session_state[result_key] = result_text
+                        st.markdown(result_text)
+                        st.success("분석 완료! (일반 방식)")
+                    except Exception as fallback_err:
+                        st.error(f"AI 분석 오류: {fallback_err}")
 
     elif result_key in st.session_state:
         st.markdown(st.session_state[result_key])
