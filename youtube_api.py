@@ -20,9 +20,19 @@ _POLITICAL_KEYWORDS = [
 
 
 def _build_client():
+    """사이드바 설정(환경변수) → Streamlit secrets 순으로 YouTube API 클라이언트를 생성합니다."""
     api_key = os.getenv("YOUTUBE_API_KEY")
     if not api_key:
-        raise ValueError("YOUTUBE_API_KEY 환경변수가 설정되지 않았습니다.")
+        try:
+            import streamlit as st
+            api_key = st.secrets.get("YOUTUBE_API_KEY", "")
+        except Exception:
+            pass
+    if not api_key:
+        raise ValueError(
+            "YouTube API 키가 설정되지 않았습니다. "
+            "사이드바에서 YouTube API 키를 입력해주세요."
+        )
     return build("youtube", "v3", developerKey=api_key)
 
 
