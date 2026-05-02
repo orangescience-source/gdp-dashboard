@@ -8,8 +8,19 @@ _client = None
 
 
 def _extract_json_array(text: str) -> list:
-    # 1순위: ```json ... ``` 또는 ``` ... ``` 블록 안에서 추출
-    code_block = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    # 1순위: ```json ... ``` 블록 명시적 추출
+    json_block = re.search(r"```json\s*([\s\S]*?)```", text)
+    if json_block:
+        candidate = json_block.group(1).strip()
+        try:
+            result = json.loads(candidate)
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    # 2순위: ``` ... ``` 일반 코드 블록 추출
+    code_block = re.search(r"```\s*([\s\S]*?)```", text)
     if code_block:
         candidate = code_block.group(1).strip()
         try:
@@ -19,7 +30,7 @@ def _extract_json_array(text: str) -> list:
         except json.JSONDecodeError:
             pass
 
-    # 2순위: 텍스트 전체에서 첫 '[' ~ 마지막 ']' 범위 추출
+    # 3순위: 텍스트 전체에서 첫 '[' ~ 마지막 ']' 범위 추출
     start = text.find("[")
     end = text.rfind("]")
     if start != -1 and end != -1 and end > start:
@@ -31,7 +42,7 @@ def _extract_json_array(text: str) -> list:
         except json.JSONDecodeError:
             pass
 
-    # 3순위: 중첩 괄호를 직접 추적해 가장 바깥 배열 추출
+    # 4순위: 중첩 괄호를 직접 추적해 가장 바깥 배열 추출
     depth = 0
     array_start = None
     for i, ch in enumerate(text):
