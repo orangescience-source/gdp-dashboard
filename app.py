@@ -10,8 +10,8 @@ from modules.claude_analyzer import analyze_scenes
 from modules.video_searcher import search_videos
 from modules.sheets_writer import write_to_sheets
 
-st.set_page_config(page_title="SRT 영상 후보 수집기", page_icon="🎬", layout="wide")
-st.title("🎬 SRT 영상 후보 수집기")
+st.set_page_config(page_title="무료 영상 탐색기", page_icon="🎬", layout="wide")
+st.title("🎬 무료 영상 탐색기")
 
 # ── 사이드바: API 키 입력 ──────────────────────────────
 with st.sidebar:
