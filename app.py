@@ -147,7 +147,7 @@ with tab_subtitle:
         if st.button("▶ 분석 시작", type="primary", key="btn_analyze"):
             progress = st.progress(0, text="🤖 장면 분석 중...")
 
-            scenes = analyze_scenes(subtitles)
+            scenes, usage_stats = analyze_scenes(subtitles)
             progress.progress(30, text=f"✅ {len(scenes)}개 장면 완료. 🎬 영상 검색 중...")
 
             for i, scene in enumerate(scenes):
@@ -161,11 +161,19 @@ with tab_subtitle:
 
             progress.progress(100, text="✅ 완료!")
             st.session_state["scenes"] = scenes
+            st.session_state["usage_stats"] = usage_stats
 
     if "scenes" in st.session_state:
         scenes = st.session_state["scenes"]
         total_videos = sum(len(s.get("videos", [])) for s in scenes)
         st.success(f"총 {len(scenes)}개 장면 / {total_videos}개 영상 후보 수집 완료")
+
+        if "usage_stats" in st.session_state:
+            u = st.session_state["usage_stats"]
+            st.info(
+                f"💰 이번 분석 비용: **${u['cost_usd']}** (약 **{u['cost_krw']:,}원**)"
+                f" | 입력 {u['input_tokens']:,} 토큰 | 출력 {u['output_tokens']:,} 토큰"
+            )
 
         for scene in scenes:
             time_range = (

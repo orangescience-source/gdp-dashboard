@@ -6,6 +6,10 @@ from config import ANTHROPIC_API_KEY
 
 _client = None
 
+INPUT_PRICE_PER_M = 3.0    # $3 / 1M input tokens (claude-sonnet-4-5)
+OUTPUT_PRICE_PER_M = 15.0  # $15 / 1M output tokens
+KRW_RATE = 1380
+
 
 def _extract_json_array(text: str) -> list:
     # 1순위: ```json ... ``` 블록 명시적 추출
@@ -66,6 +70,11 @@ def _extract_json_array(text: str) -> list:
     raise ValueError(f"응답에서 JSON 배열을 찾을 수 없습니다. 원문 앞 200자: {text[:200]}")
 
 
+def _calc_cost(input_tokens: int, output_tokens: int) -> float:
+    return (input_tokens / 1_000_000 * INPUT_PRICE_PER_M
+            + output_tokens / 1_000_000 * OUTPUT_PRICE_PER_M)
+
+
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
@@ -73,21 +82,38 @@ def _get_client() -> anthropic.Anthropic:
     return _client
 
 
-def analyze_scenes(subtitles: list[dict], max_retries: int = 3, chunk_size: int = 50) -> list[dict]:
+def analyze_scenes(
+    subtitles: list[dict], max_retries: int = 3, chunk_size: int = 50
+) -> tuple[list[dict], dict]:
     chunks = [subtitles[i : i + chunk_size] for i in range(0, len(subtitles), chunk_size)]
     all_scenes = []
     scene_offset = 0
+    total_input = 0
+    total_output = 0
 
     for chunk_idx, chunk in enumerate(chunks):
         print(f"  → 청크 {chunk_idx + 1}/{len(chunks)} 처리 중 (자막 {len(chunk)}개)...")
-        chunk_scenes = _analyze_chunk(chunk, scene_offset, max_retries)
+        chunk_scenes, in_tok, out_tok = _analyze_chunk(chunk, scene_offset, max_retries)
         all_scenes.extend(chunk_scenes)
         scene_offset += len(chunk_scenes)
+        total_input += in_tok
+        total_output += out_tok
+        print(f"     입력 {in_tok:,} | 출력 {out_tok:,} 토큰")
 
-    return all_scenes
+    cost_usd = _calc_cost(total_input, total_output)
+    usage_stats = {
+        "input_tokens": total_input,
+        "output_tokens": total_output,
+        "cost_usd": round(cost_usd, 4),
+        "cost_krw": round(cost_usd * KRW_RATE),
+    }
+    print(f"  💰 총 비용: ${cost_usd:.4f} (약 {usage_stats['cost_krw']:,}원)")
+    return all_scenes, usage_stats
 
 
-def _analyze_chunk(subtitles: list[dict], scene_offset: int, max_retries: int) -> list[dict]:
+def _analyze_chunk(
+    subtitles: list[dict], scene_offset: int, max_retries: int
+) -> tuple[list[dict], int, int]:
     subtitle_text = "\n".join(
         f"[{s['index']}] {s['start']} --> {s['end']}\n{s['text']}"
         for s in subtitles
@@ -136,11 +162,12 @@ def _analyze_chunk(subtitles: list[dict], scene_offset: int, max_retries: int) -
             raw = response.content[0].text.strip()
             scenes = _extract_json_array(raw)
 
-            # scene_number가 offset과 맞지 않으면 재번호 매기기
             for i, scene in enumerate(scenes):
                 scene["scene_number"] = scene_offset + i + 1
 
-            return scenes
+            in_tok = response.usage.input_tokens
+            out_tok = response.usage.output_tokens
+            return scenes, in_tok, out_tok
 
         except (json.JSONDecodeError, ValueError) as e:
             if attempt < max_retries - 1:
