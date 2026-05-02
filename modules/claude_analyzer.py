@@ -1,9 +1,58 @@
 import json
+import re
 import time
 import anthropic
 from config import ANTHROPIC_API_KEY
 
 _client = None
+
+
+def _extract_json_array(text: str) -> list:
+    # 1순위: ```json ... ``` 또는 ``` ... ``` 블록 안에서 추출
+    code_block = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if code_block:
+        candidate = code_block.group(1).strip()
+        try:
+            result = json.loads(candidate)
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    # 2순위: 텍스트 전체에서 첫 '[' ~ 마지막 ']' 범위 추출
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end != -1 and end > start:
+        candidate = text[start : end + 1]
+        try:
+            result = json.loads(candidate)
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    # 3순위: 중첩 괄호를 직접 추적해 가장 바깥 배열 추출
+    depth = 0
+    array_start = None
+    for i, ch in enumerate(text):
+        if ch == "[" and array_start is None:
+            array_start = i
+            depth = 1
+        elif ch == "[" and array_start is not None:
+            depth += 1
+        elif ch == "]" and array_start is not None:
+            depth -= 1
+            if depth == 0:
+                candidate = text[array_start : i + 1]
+                try:
+                    result = json.loads(candidate)
+                    if isinstance(result, list):
+                        return result
+                except json.JSONDecodeError:
+                    pass
+                array_start = None
+
+    raise ValueError(f"응답에서 JSON 배열을 찾을 수 없습니다. 원문 앞 200자: {text[:200]}")
 
 
 def _get_client() -> anthropic.Anthropic:
@@ -60,18 +109,7 @@ def analyze_scenes(subtitles: list[dict], max_retries: int = 3) -> list[dict]:
             )
 
             raw = response.content[0].text.strip()
-
-            # JSON 블록 추출 (```json ... ``` 감싸진 경우 대비)
-            if raw.startswith("```"):
-                lines = raw.splitlines()
-                raw = "\n".join(
-                    line for line in lines
-                    if not line.startswith("```")
-                )
-
-            scenes = json.loads(raw)
-            if not isinstance(scenes, list):
-                raise ValueError("응답이 JSON 배열이 아닙니다.")
+            scenes = _extract_json_array(raw)
             return scenes
 
         except (json.JSONDecodeError, ValueError) as e:
