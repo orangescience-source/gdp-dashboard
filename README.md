@@ -2,6 +2,7 @@
 
 YouTube Data API v3와 Claude AI를 활용해 정치 채널의 고성과 콘텐츠(니치 영상)를 자동 분석하고, 새로운 주제를 제안하는 Streamlit 앱입니다.
 
+
 ## 주요 기능
 
 | 탭 | 기능 |

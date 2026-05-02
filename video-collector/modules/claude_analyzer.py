@@ -73,7 +73,21 @@ def _get_client() -> anthropic.Anthropic:
     return _client
 
 
-def analyze_scenes(subtitles: list[dict], max_retries: int = 3) -> list[dict]:
+def analyze_scenes(subtitles: list[dict], max_retries: int = 3, chunk_size: int = 50) -> list[dict]:
+    chunks = [subtitles[i : i + chunk_size] for i in range(0, len(subtitles), chunk_size)]
+    all_scenes = []
+    scene_offset = 0
+
+    for chunk_idx, chunk in enumerate(chunks):
+        print(f"  → 청크 {chunk_idx + 1}/{len(chunks)} 처리 중 (자막 {len(chunk)}개)...")
+        chunk_scenes = _analyze_chunk(chunk, scene_offset, max_retries)
+        all_scenes.extend(chunk_scenes)
+        scene_offset += len(chunk_scenes)
+
+    return all_scenes
+
+
+def _analyze_chunk(subtitles: list[dict], scene_offset: int, max_retries: int) -> list[dict]:
     subtitle_text = "\n".join(
         f"[{s['index']}] {s['start']} --> {s['end']}\n{s['text']}"
         for s in subtitles
@@ -86,12 +100,12 @@ def analyze_scenes(subtitles: list[dict], max_retries: int = 3) -> list[dict]:
     )
 
     user_prompt = (
-        "다음 자막을 장면 단위로 분석해주세요:\n\n"
+        f"다음 자막을 장면 단위로 분석해주세요. scene_number는 {scene_offset + 1}부터 시작합니다:\n\n"
         f"{subtitle_text}\n\n"
         "반환 형식 (JSON 배열만):\n"
         "[\n"
         "  {\n"
-        '    "scene_number": 1,\n'
+        f'    "scene_number": {scene_offset + 1},\n'
         '    "start_time": "00:00:00,080",\n'
         '    "end_time": "00:00:13,670",\n'
         '    "summary_ko": "장면 요약 (한국어)",\n'
@@ -121,6 +135,11 @@ def analyze_scenes(subtitles: list[dict], max_retries: int = 3) -> list[dict]:
 
             raw = response.content[0].text.strip()
             scenes = _extract_json_array(raw)
+
+            # scene_number가 offset과 맞지 않으면 재번호 매기기
+            for i, scene in enumerate(scenes):
+                scene["scene_number"] = scene_offset + i + 1
+
             return scenes
 
         except (json.JSONDecodeError, ValueError) as e:
