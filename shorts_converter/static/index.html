@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>YouTube → Shorts 변환기</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #0f0f17; color: #e2e8f0; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #1a1a2e; }
+  ::-webkit-scrollbar-thumb { background: #4a4a6a; border-radius: 3px; }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #a78bfa, #60a5fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .card {
+    background: #1a1a2e;
+    border: 1px solid #2d2d4e;
+    border-radius: 16px;
+  }
+  .card-hover {
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .card-hover:hover {
+    border-color: #6366f1;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-secondary {
+    background: #2d2d4e;
+    color: #a0aec0;
+    border: 1px solid #3d3d5e;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { background: #3d3d5e; color: #e2e8f0; }
+  .input-field {
+    background: #12121f;
+    border: 1px solid #2d2d4e;
+    border-radius: 10px;
+    color: #e2e8f0;
+    padding: 10px 14px;
+    width: 100%;
+    font-size: 14px;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+  .input-field:focus { border-color: #6366f1; }
+  .progress-bar {
+    height: 4px;
+    background: #2d2d4e;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .badge-tip { background: #1d4ed820; color: #60a5fa; border: 1px solid #1d4ed840; }
+  .badge-fact { background: #05966930; color: #34d399; border: 1px solid #05966940; }
+  .badge-humor { background: #92400e30; color: #fbbf24; border: 1px solid #92400e40; }
+  .badge-reaction { background: #7c3aed30; color: #a78bfa; border: 1px solid #7c3aed40; }
+  .badge-story { background: #be185d30; color: #f472b6; border: 1px solid #be185d40; }
+  .step-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .step-active { background: #6366f120; color: #a78bfa; border: 1px solid #6366f140; }
+  .step-done { background: #05966920; color: #34d399; border: 1px solid #05966940; }
+  .step-pending { background: #1a1a2e; color: #4a5568; border: 1px solid #2d2d4e; }
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+  .clip-selected { border-color: #6366f1 !important; box-shadow: 0 0 0 2px #6366f140; }
+  .fade-in { animation: fadeIn 0.4s ease-in; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  .tag-chip {
+    display: inline-block;
+    background: #2d2d4e;
+    color: #94a3b8;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 12px;
+    margin: 2px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .tag-chip:hover { border-color: #6366f1; color: #a78bfa; }
+  select.input-field { appearance: none; cursor: pointer; }
+  .range-input { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px; background: #2d2d4e; outline: none; }
+  .range-input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #6366f1; cursor: pointer; }
+  .tooltip { position: relative; }
+  .tooltip:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2d2d4e;
+    color: #e2e8f0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 10;
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="border-b border-[#2d2d4e] px-6 py-4 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold">S</div>
+    <span class="font-semibold text-lg">Shorts Converter</span>
+    <span class="text-xs text-slate-500 ml-1">YouTube → Shorts / Reels</span>
+  </div>
+  <div class="flex items-center gap-3 text-sm text-slate-500">
+    <span>Powered by</span>
+    <span class="text-indigo-400 font-medium">Claude AI</span>
+    <span>·</span>
+    <span class="text-purple-400 font-medium">Whisper</span>
+  </div>
+</header>
+
+<!-- Main -->
+<main class="max-w-5xl mx-auto px-4 py-8">
+
+  <!-- Step indicators -->
+  <div id="step-bar" class="flex flex-wrap gap-2 mb-8">
+    <div class="step-indicator step-active" id="si-1">
+      <span>①</span><span>URL 입력</span>
+    </div>
+    <div class="step-indicator step-pending" id="si-2">
+      <span>②</span><span>음성 전사</span>
+    </div>
+    <div class="step-indicator step-pending" id="si-3">
+      <span>③</span><span>구간 분석</span>
+    </div>
+    <div class="step-indicator step-pending" id="si-4">
+      <span>④</span><span>클립 편집</span>
+    </div>
+    <div class="step-indicator step-pending" id="si-5">
+      <span>⑤</span><span>생성 &amp; 다운로드</span>
+    </div>
+  </div>
+
+  <!-- STEP 1: URL Input -->
+  <section id="step1" class="fade-in">
+    <div class="card p-6 mb-4">
+      <h2 class="text-xl font-semibold mb-1">YouTube 영상 URL 입력</h2>
+      <p class="text-slate-400 text-sm mb-5">유튜브 영상 링크를 붙여넣으면 쇼츠/릴스용 클립을 자동으로 추출합니다.</p>
+      <div class="flex gap-3">
+        <input id="yt-url" type="text" class="input-field flex-1"
+          placeholder="https://www.youtube.com/watch?v=..." />
+        <button id="btn-download" class="btn-primary whitespace-nowrap" onclick="startDownload()">
+          다운로드
+        </button>
+      </div>
+      <div id="download-status" class="mt-4 hidden">
+        <div class="flex items-center gap-3 text-sm text-slate-400 mb-2">
+          <svg class="spin w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span id="download-msg">다운로드 중...</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="download-progress" style="width:30%"></div></div>
+      </div>
+      <div id="download-error" class="mt-3 p-3 rounded-lg bg-red-900/30 border border-red-700/50 text-red-300 text-sm hidden"></div>
+    </div>
+
+    <!-- Video info card (shown after download) -->
+    <div id="video-info" class="card p-5 hidden fade-in">
+      <div class="flex gap-4 items-start">
+        <img id="vi-thumb" src="" alt="" class="w-32 h-20 object-cover rounded-lg bg-slate-800" />
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold truncate" id="vi-title">영상 제목</p>
+          <p class="text-sm text-slate-400 mt-1" id="vi-channel">채널명</p>
+          <p class="text-sm text-slate-500 mt-1" id="vi-duration">길이: --</p>
+          <button class="btn-primary mt-3 text-sm" onclick="startTranscribe()">
+            음성 전사 시작 →
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: Transcription -->
+  <section id="step2" class="hidden fade-in">
+    <div class="card p-6">
+      <h2 class="text-xl font-semibold mb-1">음성 전사 (Whisper)</h2>
+      <p class="text-slate-400 text-sm mb-4">Whisper AI로 전체 음성을 텍스트로 변환합니다. 영상 길이에 따라 1~5분 소요됩니다.</p>
+
+      <div id="transcribe-progress" class="mb-4">
+        <div class="flex items-center gap-3 mb-2">
+          <svg class="spin w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span id="transcribe-msg" class="text-sm text-slate-400">Whisper 모델 로드 중...</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill pulse" style="width:60%"></div></div>
+      </div>
+
+      <div id="transcript-result" class="hidden">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-green-400 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            전사 완료
+          </span>
+          <button class="btn-secondary text-xs" onclick="toggleTranscript()">전문 보기/숨기기</button>
+        </div>
+        <div id="transcript-text" class="hidden text-sm text-slate-400 bg-[#12121f] rounded-lg p-4 max-h-40 overflow-y-auto leading-relaxed"></div>
+        <button class="btn-primary mt-4" onclick="startAnalyze()">
+          Claude로 후킹 포인트 분석 →
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: Analysis -->
+  <section id="step3" class="hidden fade-in">
+    <div class="card p-6 mb-4">
+      <h2 class="text-xl font-semibold mb-1">후킹 포인트 분석</h2>
+      <p class="text-slate-400 text-sm mb-4">Claude AI가 가장 매력적인 구간 최대 6개를 선별합니다.</p>
+      <div id="analyze-progress">
+        <div class="flex items-center gap-3 mb-2">
+          <svg class="spin w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span class="text-sm text-slate-400">Claude가 전사 내용을 분석 중...</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill pulse" style="width:80%"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: Clip Editor -->
+  <section id="step4" class="hidden fade-in">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-semibold">클립 편집</h2>
+        <p class="text-slate-400 text-sm mt-1">생성할 클립을 선택하고 설정을 조정하세요.</p>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn-secondary text-sm" onclick="selectAll()">전체 선택</button>
+        <button id="btn-generate-all" class="btn-primary text-sm" onclick="generateSelected()">
+          선택한 클립 생성
+        </button>
+      </div>
+    </div>
+    <div id="clips-container" class="grid gap-4"></div>
+  </section>
+
+  <!-- STEP 5: Results -->
+  <section id="step5" class="hidden fade-in">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-semibold">생성된 클립</h2>
+        <p class="text-slate-400 text-sm mt-1">미리보기 후 개별 또는 전체 다운로드하세요.</p>
+      </div>
+      <button id="btn-download-all" class="btn-primary text-sm" onclick="downloadAll()">
+        전체 다운로드
+      </button>
+    </div>
+    <div id="results-container" class="grid gap-4"></div>
+  </section>
+
+</main>
+
+<!-- Clip Card Template (hidden) -->
+<template id="clip-card-tpl">
+  <div class="card card-hover p-5 cursor-pointer select-none" data-clip-id="">
+    <div class="flex items-start gap-3">
+      <!-- Checkbox -->
+      <div class="mt-1 w-5 h-5 rounded border-2 border-[#3d3d5e] flex items-center justify-center shrink-0 clip-checkbox">
+        <svg class="w-3 h-3 text-white hidden check-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <!-- Content -->
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap mb-2">
+          <span class="font-semibold clip-title text-base"></span>
+          <span class="badge clip-hook-badge"></span>
+        </div>
+        <p class="text-xs text-slate-400 mb-3 clip-reason"></p>
+        <div class="flex items-center gap-3 text-xs text-slate-500 mb-3">
+          <span class="clip-time-display font-mono bg-[#12121f] px-2 py-1 rounded"></span>
+          <span class="clip-duration-display text-indigo-400"></span>
+        </div>
+        <!-- Hashtags -->
+        <div class="clip-hashtags mb-3"></div>
+        <!-- Expand button -->
+        <button class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 edit-toggle" onclick="toggleEdit(event, this)">
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+          상세 편집
+        </button>
+        <!-- Edit panel -->
+        <div class="edit-panel hidden mt-4 space-y-4 border-t border-[#2d2d4e] pt-4">
+
+          <!-- Title -->
+          <div>
+            <label class="text-xs text-slate-400 block mb-1">클립 제목</label>
+            <input type="text" class="input-field clip-title-input" maxlength="40" />
+          </div>
+
+          <!-- Time range -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">시작 (초)</label>
+              <input type="number" class="input-field clip-start-input" step="1" min="0" />
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">끝 (초)</label>
+              <input type="number" class="input-field clip-end-input" step="1" min="1" />
+            </div>
+          </div>
+
+          <!-- Layout -->
+          <div>
+            <label class="text-xs text-slate-400 block mb-1">레이아웃</label>
+            <select class="input-field clip-layout">
+              <option value="letterbox">레터박스 (상단 제목 / 하단 채널명 + 블랙바)</option>
+              <option value="crop">세로 크롭 (9:16 중앙 자동 크롭)</option>
+            </select>
+          </div>
+
+          <!-- Font -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">제목 폰트 크기</label>
+              <input type="range" class="range-input clip-font-size" min="28" max="80" value="52" />
+              <div class="text-xs text-slate-500 mt-1 clip-font-size-val">52px</div>
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">제목 색상</label>
+              <select class="input-field clip-title-color text-sm">
+                <option value="white">흰색</option>
+                <option value="yellow">노랑</option>
+                <option value="#00ffcc">민트</option>
+                <option value="#ff6b6b">빨강</option>
+                <option value="#74b9ff">하늘</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Subtitles toggle -->
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400">자막 자동 삽입</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" class="sr-only peer clip-subtitle-toggle" checked />
+              <div class="w-9 h-5 bg-[#2d2d4e] rounded-full peer peer-checked:bg-indigo-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+            </label>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Result Card Template (hidden) -->
+<template id="result-card-tpl">
+  <div class="card p-5 result-card" data-clip-id="">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Video preview -->
+      <div class="bg-[#12121f] rounded-lg overflow-hidden aspect-[9/16] max-h-96 flex items-center justify-center">
+        <div class="result-loading text-slate-500 text-sm flex flex-col items-center gap-2">
+          <svg class="spin w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          <span>렌더링 중...</span>
+        </div>
+        <video class="result-video hidden w-full h-full object-contain" controls playsinline></video>
+      </div>
+      <!-- Info -->
+      <div class="flex flex-col justify-between">
+        <div>
+          <h3 class="font-semibold text-base result-title mb-2"></h3>
+          <p class="text-xs text-slate-400 result-time mb-3"></p>
+          <div class="result-hashtags mb-4"></div>
+          <div id="result-error-msg" class="hidden text-sm text-red-400 bg-red-900/20 rounded-lg p-3 mb-3 result-error-text"></div>
+        </div>
+        <div class="flex gap-2">
+          <a class="btn-primary text-sm flex-1 text-center result-download-btn" href="#" download>
+            다운로드
+          </a>
+          <button class="btn-secondary text-sm" onclick="regenClip(event, this)">재생성</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let state = {
+  jobId: null,
+  jobData: null,
+  transcript: null,
+  segments: [],
+  clips: [],
+  selectedClips: new Set(),
+  clipConfigs: {},   // clip_id → config overrides
+  generatingClips: new Set(),
+  readyClips: new Set(),
+};
+
+// ── Utils ────────────────────────────────────────────────────────────────────
+const fmt = t => {
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const show = id => document.getElementById(id)?.classList.remove('hidden');
+const hide = id => document.getElementById(id)?.classList.add('hidden');
+
+function setStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById(`si-${i}`);
+    if (!el) continue;
+    el.className = 'step-indicator ' + (i < n ? 'step-done' : i === n ? 'step-active' : 'step-pending');
+  }
+}
+
+function hookBadge(type) {
+  const map = {
+    tip: ['badge-tip', '💡 팁'],
+    fact: ['badge-fact', '📊 사실'],
+    humor: ['badge-humor', '😂 유머'],
+    reaction: ['badge-reaction', '😮 반응'],
+    story: ['badge-story', '📖 스토리'],
+  };
+  const [cls, label] = map[type] || ['badge-tip', type || '클립'];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// ── STEP 1: Download ─────────────────────────────────────────────────────────
+async function startDownload() {
+  const url = document.getElementById('yt-url').value.trim();
+  if (!url) { alert('YouTube URL을 입력하세요.'); return; }
+
+  document.getElementById('btn-download').disabled = true;
+  hide('download-error');
+  show('download-status');
+  document.getElementById('download-msg').textContent = 'yt-dlp로 다운로드 중...';
+  document.getElementById('download-progress').style.width = '20%';
+
+  try {
+    const res = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Download failed');
+    state.jobId = data.job_id;
+    pollDownload();
+  } catch (e) {
+    showDownloadError(e.message);
+  }
+}
+
+function pollDownload() {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/status/${state.jobId}`);
+      const job = await res.json();
+
+      if (job.status === 'downloading') {
+        document.getElementById('download-progress').style.width = '50%';
+      } else if (job.status === 'downloaded') {
+        clearInterval(interval);
+        document.getElementById('download-progress').style.width = '100%';
+        document.getElementById('download-msg').textContent = '다운로드 완료!';
+        state.jobData = job;
+        showVideoInfo(job);
+        setStep(2);
+      } else if (job.status === 'error') {
+        clearInterval(interval);
+        showDownloadError(job.error || '알 수 없는 오류');
+      }
+    } catch (e) {
+      clearInterval(interval);
+      showDownloadError(e.message);
+    }
+  }, 1500);
+}
+
+function showVideoInfo(job) {
+  const card = document.getElementById('video-info');
+  document.getElementById('vi-thumb').src = job.thumbnail || '';
+  document.getElementById('vi-title').textContent = job.title || 'Unknown';
+  document.getElementById('vi-channel').textContent = job.channel || '';
+  document.getElementById('vi-duration').textContent = `길이: ${fmt(job.duration || 0)} (${Math.round(job.duration || 0)}초)`;
+  card.classList.remove('hidden');
+}
+
+function showDownloadError(msg) {
+  const el = document.getElementById('download-error');
+  el.textContent = '오류: ' + msg;
+  el.classList.remove('hidden');
+  hide('download-status');
+  document.getElementById('btn-download').disabled = false;
+}
+
+// ── STEP 2: Transcribe ───────────────────────────────────────────────────────
+async function startTranscribe() {
+  show('step2');
+  document.getElementById('step1').querySelector('[onclick="startTranscribe()"]').disabled = true;
+  setStep(2);
+
+  try {
+    await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: state.jobId, model: 'base' }),
+    });
+    pollTranscribe();
+  } catch (e) {
+    document.getElementById('transcribe-msg').textContent = '오류: ' + e.message;
+  }
+}
+
+function pollTranscribe() {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/status/${state.jobId}`);
+      const job = await res.json();
+
+      if (job.status === 'transcribing') {
+        document.getElementById('transcribe-msg').textContent = 'Whisper 전사 중... (CPU 기준 수 분 소요)';
+      } else if (job.status === 'transcribed') {
+        clearInterval(interval);
+        state.transcript = job.transcript;
+        state.segments = job.segments || [];
+        document.getElementById('transcribe-msg').textContent = '완료';
+
+        hide('transcribe-progress');
+        show('transcript-result');
+        document.getElementById('transcript-text').textContent = job.transcript;
+        setStep(3);
+      } else if (job.status === 'error') {
+        clearInterval(interval);
+        document.getElementById('transcribe-msg').textContent = '오류: ' + (job.error || '전사 실패');
+      }
+    } catch (e) {
+      clearInterval(interval);
+    }
+  }, 2000);
+}
+
+function toggleTranscript() {
+  document.getElementById('transcript-text').classList.toggle('hidden');
+}
+
+// ── STEP 3: Analyze ──────────────────────────────────────────────────────────
+async function startAnalyze() {
+  show('step3');
+  setStep(3);
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: state.jobId,
+        transcript: state.transcript,
+        segments: state.segments,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Analysis failed');
+
+    state.clips = data.clips || [];
+    hide('step3');
+    renderClipEditor();
+    show('step4');
+    setStep(4);
+  } catch (e) {
+    document.querySelector('#step3 .card p').textContent = '분석 오류: ' + e.message;
+  }
+}
+
+// ── STEP 4: Clip Editor ──────────────────────────────────────────────────────
+function renderClipEditor() {
+  const container = document.getElementById('clips-container');
+  container.innerHTML = '';
+  const tpl = document.getElementById('clip-card-tpl');
+
+  state.clips.forEach((clip, idx) => {
+    const node = tpl.content.cloneNode(true);
+    const card = node.querySelector('[data-clip-id]');
+    card.dataset.clipId = clip.clip_id;
+
+    card.querySelector('.clip-title').textContent = clip.title;
+    card.querySelector('.clip-hook-badge').outerHTML = hookBadge(clip.hook_type);
+    card.querySelector('.clip-reason').textContent = clip.reason || '';
+    card.querySelector('.clip-time-display').textContent = `${fmt(clip.start)} → ${fmt(clip.end)}`;
+    card.querySelector('.clip-duration-display').textContent = `${Math.round(clip.end - clip.start)}초`;
+
+    const tagsEl = card.querySelector('.clip-hashtags');
+    (clip.hashtags || []).forEach(tag => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.textContent = '#' + tag.replace(/^#/, '');
+      tagsEl.appendChild(chip);
+    });
+
+    // Edit panel defaults
+    card.querySelector('.clip-title-input').value = clip.title;
+    card.querySelector('.clip-start-input').value = Math.round(clip.start);
+    card.querySelector('.clip-end-input').value = Math.round(clip.end);
+
+    const fsInput = card.querySelector('.clip-font-size');
+    fsInput.addEventListener('input', () => {
+      card.querySelector('.clip-font-size-val').textContent = fsInput.value + 'px';
+    });
+
+    // Click-to-select
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.edit-panel') || e.target.closest('.edit-toggle')) return;
+      toggleSelect(clip.clip_id, card);
+    });
+
+    container.appendChild(node);
+
+    // Auto-select all
+    toggleSelect(clip.clip_id, container.lastElementChild);
+  });
+}
+
+function toggleSelect(clipId, card) {
+  const checkbox = card.querySelector('.clip-checkbox');
+  const checkIcon = card.querySelector('.check-icon');
+  if (state.selectedClips.has(clipId)) {
+    state.selectedClips.delete(clipId);
+    card.classList.remove('clip-selected');
+    checkbox.classList.remove('bg-indigo-600', 'border-indigo-600');
+    checkIcon.classList.add('hidden');
+  } else {
+    state.selectedClips.add(clipId);
+    card.classList.add('clip-selected');
+    checkbox.classList.add('bg-indigo-600', 'border-indigo-600');
+    checkIcon.classList.remove('hidden');
+  }
+}
+
+function selectAll() {
+  const container = document.getElementById('clips-container');
+  state.clips.forEach(clip => {
+    const card = container.querySelector(`[data-clip-id="${clip.clip_id}"]`);
+    if (card && !state.selectedClips.has(clip.clip_id)) {
+      toggleSelect(clip.clip_id, card);
+    }
+  });
+}
+
+function toggleEdit(e, btn) {
+  e.stopPropagation();
+  const panel = btn.closest('.card-hover').querySelector('.edit-panel');
+  panel.classList.toggle('hidden');
+  btn.querySelector('svg').style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+
+function getClipConfig(clip, card) {
+  const startVal = parseFloat(card.querySelector('.clip-start-input').value) || clip.start;
+  const endVal = parseFloat(card.querySelector('.clip-end-input').value) || clip.end;
+  const titleVal = card.querySelector('.clip-title-input').value || clip.title;
+  const layout = card.querySelector('.clip-layout').value;
+  const color = card.querySelector('.clip-title-color').value;
+  const fontSize = parseInt(card.querySelector('.clip-font-size').value);
+  const showSubs = card.querySelector('.clip-subtitle-toggle').checked;
+  const hashtags = (clip.hashtags || []).map(t => t.replace(/^#/, ''));
+
+  return {
+    job_id: state.jobId,
+    clip_id: clip.clip_id,
+    start: Math.max(0, startVal),
+    end: Math.min(state.jobData?.duration || 9999, endVal),
+    title: titleVal,
+    channel_name: state.jobData?.channel || '',
+    hashtags,
+    layout,
+    title_color: color,
+    title_size: fontSize,
+    show_subtitles: showSubs,
+    subtitle_color: 'white',
+  };
+}
+
+async function generateSelected() {
+  if (state.selectedClips.size === 0) {
+    alert('클립을 하나 이상 선택하세요.');
+    return;
+  }
+
+  document.getElementById('btn-generate-all').disabled = true;
+
+  const container = document.getElementById('clips-container');
+  const resultsContainer = document.getElementById('results-container');
+  resultsContainer.innerHTML = '';
+
+  show('step5');
+  setStep(5);
+  window.scrollTo({ top: document.getElementById('step5').offsetTop - 20, behavior: 'smooth' });
+
+  const tpl = document.getElementById('result-card-tpl');
+  const clipConfigs = [];
+
+  for (const clip of state.clips) {
+    if (!state.selectedClips.has(clip.clip_id)) continue;
+
+    const card = container.querySelector(`[data-clip-id="${clip.clip_id}"]`);
+    const config = getClipConfig(clip, card);
+    clipConfigs.push({ clip, config });
+
+    // Add result card immediately
+    const node = tpl.content.cloneNode(true);
+    const rcard = node.querySelector('.result-card');
+    rcard.dataset.clipId = clip.clip_id;
+    rcard.querySelector('.result-title').textContent = config.title;
+    rcard.querySelector('.result-time').textContent = `${fmt(config.start)} → ${fmt(config.end)} (${Math.round(config.end - config.start)}초)`;
+
+    const tagsEl = rcard.querySelector('.result-hashtags');
+    config.hashtags.forEach(tag => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.textContent = '#' + tag;
+      tagsEl.appendChild(chip);
+    });
+
+    resultsContainer.appendChild(node);
+
+    // Start generation
+    try {
+      const res = await fetch('/api/generate-clip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      if (!res.ok) throw new Error('Failed to start generation');
+    } catch (e) {
+      showResultError(clip.clip_id, e.message);
+    }
+  }
+
+  // Poll all clips
+  clipConfigs.forEach(({ clip }) => pollClip(clip.clip_id));
+}
+
+function pollClip(clipId) {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`/api/clip-status/${clipId}`);
+      if (res.status === 404) return;
+      const data = await res.json();
+
+      if (data.status === 'ready') {
+        clearInterval(interval);
+        showClipReady(clipId);
+      } else if (data.status === 'error') {
+        clearInterval(interval);
+        showResultError(clipId, data.error || '클립 생성 실패');
+      }
+    } catch (e) { /* ignore */ }
+  }, 2000);
+}
+
+function showClipReady(clipId) {
+  const rcard = document.querySelector(`.result-card[data-clip-id="${clipId}"]`);
+  if (!rcard) return;
+
+  rcard.querySelector('.result-loading').classList.add('hidden');
+  const video = rcard.querySelector('.result-video');
+  video.src = `/api/preview/${clipId}`;
+  video.classList.remove('hidden');
+
+  const dlBtn = rcard.querySelector('.result-download-btn');
+  dlBtn.href = `/api/download-clip/${clipId}`;
+  dlBtn.removeAttribute('disabled');
+  dlBtn.classList.remove('opacity-40');
+}
+
+function showResultError(clipId, msg) {
+  const rcard = document.querySelector(`.result-card[data-clip-id="${clipId}"]`);
+  if (!rcard) return;
+  rcard.querySelector('.result-loading').classList.add('hidden');
+  const errEl = rcard.querySelector('.result-error-text');
+  if (errEl) {
+    errEl.textContent = '오류: ' + msg;
+    errEl.closest('[id="result-error-msg"]')?.classList.remove('hidden');
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function regenClip(e, btn) {
+  e.preventDefault();
+  const rcard = btn.closest('.result-card');
+  const clipId = rcard.dataset.clipId;
+  const clip = state.clips.find(c => c.clip_id === clipId);
+  if (!clip) return;
+
+  const srcCard = document.querySelector(`#clips-container [data-clip-id="${clipId}"]`);
+  const config = srcCard ? getClipConfig(clip, srcCard) : {
+    job_id: state.jobId,
+    clip_id: clipId,
+    start: clip.start,
+    end: clip.end,
+    title: clip.title,
+    channel_name: state.jobData?.channel || '',
+    hashtags: clip.hashtags || [],
+    layout: 'letterbox',
+    title_color: 'white',
+    title_size: 52,
+    show_subtitles: true,
+    subtitle_color: 'white',
+  };
+
+  // Reset UI
+  rcard.querySelector('.result-loading').classList.remove('hidden');
+  rcard.querySelector('.result-video').classList.add('hidden');
+  rcard.querySelector('.result-video').src = '';
+  const errEl = rcard.querySelector('.result-error-text');
+  if (errEl) errEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/generate-clip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!res.ok) throw new Error('Failed');
+    pollClip(clipId);
+  } catch (e) {
+    showResultError(clipId, e.message);
+  }
+}
+
+function downloadAll() {
+  document.querySelectorAll('.result-download-btn').forEach(a => {
+    if (a.href && a.href !== '#') {
+      const link = document.createElement('a');
+      link.href = a.href;
+      link.download = '';
+      link.click();
+    }
+  });
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+document.getElementById('yt-url').addEventListener('keydown', e => {
+  if (e.key === 'Enter') startDownload();
+});
+</script>
+</body>
+</html>
