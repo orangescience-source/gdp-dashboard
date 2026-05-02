@@ -23,7 +23,7 @@ def _calc_cost(input_tokens: int, output_tokens: int) -> float:
 
 
 def analyze_scenes(
-    subtitles: list[dict], max_retries: int = 3, chunk_size: int = 50
+    subtitles: list[dict], max_retries: int = 3, chunk_size: int = 20
 ) -> tuple[list[dict], dict]:
     chunks = [subtitles[i : i + chunk_size] for i in range(0, len(subtitles), chunk_size)]
     all_scenes = []
@@ -94,7 +94,7 @@ def _analyze_chunk(
         try:
             response = client.messages.create(
                 model="claude-opus-4-5",
-                max_tokens=4096,
+                max_tokens=8192,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             )
