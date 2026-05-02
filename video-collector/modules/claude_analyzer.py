@@ -1,78 +1,13 @@
 import json
-import re
 import time
 import anthropic
 from config import ANTHROPIC_API_KEY
 
 _client = None
 
-INPUT_PRICE_PER_M = 3.0    # $3 / 1M input tokens (claude-sonnet-4-5)
-OUTPUT_PRICE_PER_M = 15.0  # $15 / 1M output tokens
+INPUT_PRICE_PER_M = 3.0
+OUTPUT_PRICE_PER_M = 15.0
 KRW_RATE = 1380
-
-
-def _extract_json_array(text: str) -> list:
-    # 1순위: ```json ... ``` 블록 명시적 추출
-    json_block = re.search(r"```json\s*([\s\S]*?)```", text)
-    if json_block:
-        candidate = json_block.group(1).strip()
-        try:
-            result = json.loads(candidate)
-            if isinstance(result, list):
-                return result
-        except json.JSONDecodeError:
-            pass
-
-    # 2순위: ``` ... ``` 일반 코드 블록 추출
-    code_block = re.search(r"```\s*([\s\S]*?)```", text)
-    if code_block:
-        candidate = code_block.group(1).strip()
-        try:
-            result = json.loads(candidate)
-            if isinstance(result, list):
-                return result
-        except json.JSONDecodeError:
-            pass
-
-    # 3순위: 텍스트 전체에서 첫 '[' ~ 마지막 ']' 범위 추출
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end != -1 and end > start:
-        candidate = text[start : end + 1]
-        try:
-            result = json.loads(candidate)
-            if isinstance(result, list):
-                return result
-        except json.JSONDecodeError:
-            pass
-
-    # 4순위: 중첩 괄호를 직접 추적해 가장 바깥 배열 추출
-    depth = 0
-    array_start = None
-    for i, ch in enumerate(text):
-        if ch == "[" and array_start is None:
-            array_start = i
-            depth = 1
-        elif ch == "[" and array_start is not None:
-            depth += 1
-        elif ch == "]" and array_start is not None:
-            depth -= 1
-            if depth == 0:
-                candidate = text[array_start : i + 1]
-                try:
-                    result = json.loads(candidate)
-                    if isinstance(result, list):
-                        return result
-                except json.JSONDecodeError:
-                    pass
-                array_start = None
-
-    raise ValueError(f"응답에서 JSON 배열을 찾을 수 없습니다. 원문 앞 200자: {text[:200]}")
-
-
-def _calc_cost(input_tokens: int, output_tokens: int) -> float:
-    return (input_tokens / 1_000_000 * INPUT_PRICE_PER_M
-            + output_tokens / 1_000_000 * OUTPUT_PRICE_PER_M)
 
 
 def _get_client() -> anthropic.Anthropic:
@@ -80,6 +15,11 @@ def _get_client() -> anthropic.Anthropic:
     if _client is None:
         _client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     return _client
+
+
+def _calc_cost(input_tokens: int, output_tokens: int) -> float:
+    return (input_tokens / 1_000_000 * INPUT_PRICE_PER_M
+            + output_tokens / 1_000_000 * OUTPUT_PRICE_PER_M)
 
 
 def analyze_scenes(
@@ -120,15 +60,16 @@ def _analyze_chunk(
     )
 
     system_prompt = (
-        "당신은 영상 편집 전문가입니다.\n"
-        "주어진 자막을 분석해서 시각적으로 다른 장면이 필요한 의미 단위로 묶어주세요.\n"
-        "각 장면에 대해 다음을 JSON 배열로 반환하세요. 다른 텍스트는 절대 포함하지 마세요."
+        "당신은 영상 편집 전문가입니다. "
+        "주어진 자막을 분석해서 시각적으로 다른 장면이 필요한 의미 단위로 묶어주세요. "
+        "반드시 JSON 배열만 반환하고 다른 텍스트는 절대 포함하지 마세요. "
+        "코드 블록(```)도 사용하지 마세요."
     )
 
     user_prompt = (
-        f"다음 자막을 장면 단위로 분석해주세요. scene_number는 {scene_offset + 1}부터 시작합니다:\n\n"
+        f"다음 자막을 장면 단위로 분석해주세요. scene_number는 {scene_offset + 1}부터 시작합니다.\n\n"
         f"{subtitle_text}\n\n"
-        "반환 형식 (JSON 배열만):\n"
+        "아래 형식의 JSON 배열만 반환하세요. 설명, 코드 블록, 기타 텍스트 없이 순수 JSON만:\n"
         "[\n"
         "  {\n"
         f'    "scene_number": {scene_offset + 1},\n'
@@ -141,11 +82,10 @@ def _analyze_chunk(
         '    "tags": ["tag1", "tag2", "tag3"]\n'
         "  }\n"
         "]\n\n"
-        "주의사항:\n"
-        "- search_keywords는 반드시 영어로 (Pexels/Pixabay 검색용)\n"
-        "- 키워드는 장면당 3개, 구체적이고 시각적인 표현\n"
-        "- suggested_filename은 {장면번호}_{핵심내용} 형식, 소문자+언더스코어\n"
-        "- JSON 배열만 반환, 다른 텍스트 없음"
+        "규칙:\n"
+        "- search_keywords: 반드시 영어 3개, 구체적이고 시각적인 표현\n"
+        "- suggested_filename: {번호}_{핵심내용} 형식, 소문자+언더스코어\n"
+        "- 출력은 [ 로 시작해서 ] 로 끝나는 JSON 배열만"
     )
 
     client = _get_client()
@@ -160,19 +100,22 @@ def _analyze_chunk(
             )
 
             raw = response.content[0].text.strip()
-            scenes = _extract_json_array(raw)
+            scenes = json.loads(raw)
+
+            if not isinstance(scenes, list):
+                raise ValueError(f"JSON 배열이 아닌 응답:\n{raw}")
 
             for i, scene in enumerate(scenes):
                 scene["scene_number"] = scene_offset + i + 1
 
-            in_tok = response.usage.input_tokens
-            out_tok = response.usage.output_tokens
-            return scenes, in_tok, out_tok
+            return scenes, response.usage.input_tokens, response.usage.output_tokens
 
         except (json.JSONDecodeError, ValueError) as e:
+            print(f"  ⚠ 파싱 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+            print(f"  ── 응답 전체 ──\n{raw}\n  ──────────────")
             if attempt < max_retries - 1:
                 wait = 2 ** attempt
-                print(f"  ⚠ JSON 파싱 실패 (시도 {attempt + 1}/{max_retries}), {wait}초 후 재시도: {e}")
+                print(f"  {wait}초 후 재시도...")
                 time.sleep(wait)
             else:
-                raise RuntimeError(f"Claude 응답 파싱 최종 실패: {e}") from e
+                raise RuntimeError(f"Claude 응답 파싱 최종 실패 (시도 {max_retries}회): {e}") from e
