@@ -1,4 +1,7 @@
 .streamlit/secrets.toml
+service_account.json
+video-collector/service_account.json
+video-collector/.env
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
