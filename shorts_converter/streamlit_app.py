@@ -290,27 +290,112 @@ def _to_ascii_path(src: Path, dst_dir: Path, name: str) -> Path:
     return dst
 
 
-def step_generate_clip(video_path, clip, job_dir, clips_dir, idx):
+def _find_font() -> str:
+    """한글 지원 폰트 경로 반환. 없으면 빈 문자열."""
+    candidates = [
+        r"C:/Windows/Fonts/malgun.ttf",       # Windows 맑은 고딕
+        r"C:/Windows/Fonts/malgunbd.ttf",     # Windows 맑은 고딕 Bold
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    # 추가 탐색
+    for pattern in ["/usr/share/fonts/**/*.ttf", "/usr/share/fonts/**/*.ttc"]:
+        found = glob.glob(pattern, recursive=True)
+        if found:
+            return found[0]
+    return ""
+
+
+def _esc_drawtext(text: str) -> str:
+    """ffmpeg drawtext 값에 쓰이는 특수문자 이스케이프."""
+    return (
+        text
+        .replace("\\", "\\\\")
+        .replace("'",  "’")   # 작은따옴표 → 유사 문자로 대체
+        .replace(":",  "\\:")
+        .replace("%",  "\\%")
+    )
+
+
+def step_generate_clip(video_path, clip, job_dir, clips_dir, idx,
+                        layout="letterbox", title_color="white", font_size=60):
+    """ffmpeg로 9:16 세로 클립 생성 (제목·채널명 오버레이 포함)."""
     try:
-        start = clip["start"]
-        end = clip["end"]
+        start    = clip["start"]
+        end      = clip["end"]
         duration = end - start
         out_path = os.path.join(clips_dir, f"clip_{idx:02d}.mp4")
+
+        # ── 폰트 설정 ─────────────────────────────────────────
+        font_path = _find_font()
+        # Windows 역슬래시를 ffmpeg용 슬래시로 변환, 콜론 이스케이프
+        if font_path:
+            font_path_ff = font_path.replace("\\", "/").replace(":", "\\:")
+            font_opt = f":fontfile='{font_path_ff}'"
+        else:
+            font_opt = ""
+
+        # ── 텍스트 이스케이프 ──────────────────────────────────
+        title_e   = _esc_drawtext(clip.get("title", ""))
+        channel_e = _esc_drawtext(clip.get("channel", ""))
+
+        # ── 레이아웃 필터 ──────────────────────────────────────
+        # letterbox: 원본 비율 유지 + 위아래 블랙바 → 1080x1920
+        # crop:      중앙 9:16 크롭 → 1080x1920
+        if layout == "crop":
+            layout_vf = "crop=in_h*9/16:in_h,scale=1080:1920"
+        else:
+            layout_vf = (
+                "scale=1080:-2:force_original_aspect_ratio=decrease,"
+                "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black"
+            )
+
+        # ── drawtext 필터 ──────────────────────────────────────
+        title_dt = (
+            f"drawtext=text='{title_e}'{font_opt}"
+            f":x=(w-text_w)/2:y=60"
+            f":fontsize={font_size}:fontcolor={title_color}"
+            f":borderw=3:bordercolor=black"
+            f":shadowx=2:shadowy=2:shadowcolor=black@0.7"
+        )
+        channel_dt = (
+            f"drawtext=text='{channel_e}'{font_opt}"
+            f":x=(w-text_w)/2:y=h-80"
+            f":fontsize=36:fontcolor=white@0.9"
+            f":borderw=2:bordercolor=black"
+        ) if channel_e else None
+
+        filters = [layout_vf, title_dt]
+        if channel_dt:
+            filters.append(channel_dt)
+
+        vf = ",".join(filters)
+
         cmd = [
             "ffmpeg",
             "-ss", str(start),
             "-i", video_path,
             "-t", str(duration),
-            "-c:v", "libx264",
-            "-c:a", "aac",
-            "-y",
-            out_path,
+            "-vf", vf,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            "-y", out_path,
         ]
-        subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
+        log.info("ffmpeg exit=%d stderr=%s", result.returncode, result.stderr[-300:])
+
         if os.path.exists(out_path):
             return out_path
         return None
     except Exception:
+        log.exception("step_generate_clip failed")
         return None
 
 
@@ -475,6 +560,7 @@ def main():
         with st.status(f"클립 {clip['index']}: {clip['title']} 렌더링 중...", expanded=False) as status:
             out_path = step_generate_clip(
                 str(meta["video_path"]), clip, job_dir, clips_dir, clip["index"],
+                layout=layout, title_color=title_color, font_size=font_size,
             )
             if out_path:
                 results.append((clip, Path(out_path)))
