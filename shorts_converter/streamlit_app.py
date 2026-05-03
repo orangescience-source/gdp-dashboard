@@ -14,7 +14,7 @@ from typing import Optional
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent / ".env", override=True)
 
 os.environ["PYTHONIOENCODING"] = "utf-8"
 os.environ["PYTHONUTF8"] = "1"
