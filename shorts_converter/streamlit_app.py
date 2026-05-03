@@ -26,8 +26,18 @@ import anthropic
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-TEMP_DIR = Path(tempfile.gettempdir()) / "shorts_converter"
-TEMP_DIR.mkdir(exist_ok=True)
+
+def _ascii_workdir() -> Path:
+    """OS별 한글/공백 없는 ASCII 작업 디렉터리 반환."""
+    if sys.platform == "win32":
+        base = Path("C:/shorts_output")
+    else:
+        base = Path("/tmp/shorts_output")
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+TEMP_DIR = _ascii_workdir()
 
 st.set_page_config(
     page_title="YouTube → Shorts 변환기",
@@ -265,16 +275,44 @@ JSON만 응답 (다른 텍스트 없이):
         raise
 
 
+def _to_ascii_path(src: Path, dst_dir: Path, name: str) -> Path:
+    """src 파일을 ASCII 경로인 dst_dir/name으로 복사 후 반환.
+    이미 ASCII 경로면 복사 없이 src를 그대로 반환."""
+    try:
+        str(src).encode("ascii")
+        return src          # 이미 ASCII-safe
+    except UnicodeEncodeError:
+        pass
+    import shutil
+    dst = dst_dir / name
+    if not dst.exists():
+        shutil.copy2(src, dst)
+    return dst
+
+
 def step_generate_clip(clip: dict, video_path: Path, segments: list,
                         job_dir: Path, layout: str, title_color: str,
                         font_size: int, show_subs: bool) -> Path:
-    """ffmpeg로 세로 클립 생성."""
+    """ffmpeg로 세로 클립 생성. 모든 경로를 ASCII-only로 보장."""
+    # ASCII-safe 출력 디렉터리 (TEMP_DIR 하위는 이미 ASCII)
     output_dir = job_dir / "clips"
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / f"clip_{clip['index']:02d}_{clip['clip_id']}.mp4"
 
+    # 입력 영상이 한글 경로면 ASCII 경로로 복사
+    safe_video = _to_ascii_path(video_path, job_dir, f"input{video_path.suffix}")
+
     font_path = find_korean_font()
-    font_opt = f":fontfile='{font_path}'" if font_path else ""
+    # fontfile 경로도 ASCII 여부 확인 후 사용
+    if font_path:
+        try:
+            font_path.encode("ascii")
+            font_opt = f":fontfile='{font_path}'"
+        except (UnicodeEncodeError, AttributeError):
+            font_opt = ""   # ASCII 불가 폰트 경로는 생략
+    else:
+        font_opt = ""
+
     title_e = esc(clip["title"])
     channel_e = esc(f"@{clip['channel']}" if clip.get("channel") else "")
     tags = " ".join(f"#{t.lstrip('#')}" for t in clip.get("hashtags", [])[:4])
@@ -296,16 +334,18 @@ def step_generate_clip(clip: dict, video_path: Path, segments: list,
     if tags_e:
         filters.append(f"drawtext=text='{tags_e}'{font_opt}:x=(w-text_w)/2:y=h-75:fontsize=28:fontcolor=yellow@0.9:box=1:boxcolor=black@0.4:boxborderw=8")
 
-    # ASS 자막
+    # ASS 자막 — output_dir 은 이미 ASCII 경로
     if show_subs and segments:
         ass_path = _write_ass(segments, clip["start"], clip["end"], output_dir, clip["clip_id"])
         if ass_path:
-            filters.append(f"ass='{ass_path}'")
+            # Windows 역슬래시를 ffmpeg용 슬래시로 변환
+            ass_ffmpeg = ass_path.replace("\\", "/")
+            filters.append(f"ass='{ass_ffmpeg}'")
 
     cmd = [
         "ffmpeg",
         "-ss", str(clip["start"]),
-        "-i", str(video_path),
+        "-i", str(safe_video),
         "-t", str(clip["end"] - clip["start"]),
         "-vf", ",".join(filters),
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
