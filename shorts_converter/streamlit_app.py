@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import httpx
+
 os.environ["PYTHONIOENCODING"] = "utf-8"
 os.environ["PYTHONUTF8"] = "1"
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -228,7 +230,13 @@ JSON만 응답 (다른 텍스트 없이):
 
         # ── 체크포인트 5: Claude API 호출 ───────────────────────
         st.info(f"[DEBUG 5] prompt 길이={len(prompt)}, Claude API 호출 시작")
-        client = anthropic.Anthropic(api_key=api_key)
+        # API 키를 ASCII-safe 바이트로 명시 인코딩해 httpx 헤더 오류 차단
+        safe_api_key = api_key.encode("ascii", errors="replace").decode("ascii")
+        http_client = httpx.Client(
+            headers={"x-api-key": safe_api_key},
+            timeout=120.0,
+        )
+        client = anthropic.Anthropic(api_key=safe_api_key, http_client=http_client)
         message = client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=2048,
@@ -348,6 +356,25 @@ def main():
 
     # ── 사이드바 설정 ──
     with st.sidebar:
+        st.markdown("### 🔑 Anthropic API 키")
+        # 우선순위: 1) 사이드바 입력 2) st.secrets 3) 환경변수
+        _env_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        _secret_key = st.secrets.get("ANTHROPIC_API_KEY", "") if hasattr(st, "secrets") else ""
+        _default_key = _secret_key or _env_key
+        api_key_input = st.text_input(
+            "API Key",
+            value=_default_key,
+            type="password",
+            placeholder="sk-ant-...",
+            help="환경변수 ANTHROPIC_API_KEY가 설정돼 있으면 자동으로 채워집니다.",
+        )
+        if api_key_input:
+            # 런타임 환경변수에도 반영해서 step_analyze가 읽을 수 있게
+            os.environ["ANTHROPIC_API_KEY"] = api_key_input.strip()
+        if not api_key_input:
+            st.warning("API 키를 입력하세요.")
+
+        st.divider()
         st.markdown("### ⚙️ 설정")
         whisper_model = st.selectbox("Whisper 모델", ["base", "small", "medium"], index=0,
                                       help="작을수록 빠르지만 정확도 낮음")
