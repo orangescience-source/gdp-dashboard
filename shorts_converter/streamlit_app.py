@@ -11,8 +11,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-# Windows에서 ASCII 코덱 기본값으로 한글 출력 시 오류 방지
-os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ["PYTHONIOENCODING"] = "utf-8"
+os.environ["PYTHONUTF8"] = "1"
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if sys.stderr and hasattr(sys.stderr, "reconfigure"):
@@ -175,15 +175,19 @@ def step_analyze(transcript: str, segments: list, duration: float, channel: str)
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
 
+    def _safe(text: str) -> str:
+        return text.encode("utf-8", errors="replace").decode("utf-8")
+
+    safe_transcript = _safe(transcript)
     segments_text = "\n".join(
-        f"[{s['start']:.1f}s-{s['end']:.1f}s] {s['text']}"
+        f"[{s['start']:.1f}s-{s['end']:.1f}s] {_safe(s['text'])}"
         for s in segments
     )
 
     prompt = f"""당신은 SNS 바이럴 콘텐츠 전문가입니다.
 아래 유튜브 자막을 분석해서 쇼츠/릴스 클립으로 만들기 좋은 구간 최대 6개를 선별하세요.
 
-영상 길이: {duration:.0f}초 | 채널: {channel}
+영상 길이: {duration:.0f}초 | 채널: {_safe(channel)}
 
 자막:
 {segments_text}
