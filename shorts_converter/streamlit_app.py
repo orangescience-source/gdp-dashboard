@@ -1,5 +1,6 @@
 import os
 import sys
+import io
 import json
 import uuid
 import subprocess
@@ -9,6 +10,13 @@ import tempfile
 import logging
 from pathlib import Path
 from typing import Optional
+
+# Windows에서 ASCII 코덱 기본값으로 한글 출력 시 오류 방지
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import streamlit as st
 import anthropic
@@ -77,7 +85,12 @@ def fmt_time(t: float) -> str:
 
 def run_cmd(cmd: list, label: str = "") -> subprocess.CompletedProcess:
     log.info("RUN %s: %s", label, " ".join(str(c) for c in cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",   # 디코딩 불가 바이트를 ?로 대체 (크래시 방지)
+    )
     if result.returncode != 0:
         log.error("FAIL %s stderr: %s", label, result.stderr[-500:])
     return result
@@ -194,6 +207,7 @@ JSON만 응답 (다른 텍스트 없이):
   ]
 }}"""
 
+    # prompt는 str(유니코드)이므로 Anthropic SDK가 내부적으로 UTF-8로 직렬화함
     client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
         model="claude-sonnet-4-5",
@@ -201,7 +215,7 @@ JSON만 응답 (다른 텍스트 없이):
         messages=[{"role": "user", "content": prompt}],
     )
     text = message.content[0].text
-    log.info("Claude response: %s", text[:300])
+    log.info("Claude response: %s", text[:300].encode("utf-8", errors="replace").decode("utf-8"))
 
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
