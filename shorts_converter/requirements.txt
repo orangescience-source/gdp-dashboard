@@ -5,3 +5,4 @@ openai-whisper>=20231117
 anthropic>=0.18.0
 python-multipart>=0.0.9
 torch>=2.0.0
+streamlit>=1.32.0
