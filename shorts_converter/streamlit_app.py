@@ -290,36 +290,28 @@ def _to_ascii_path(src: Path, dst_dir: Path, name: str) -> Path:
     return dst
 
 
-def step_generate_clip(clip: dict, video_path: Path,
-                        job_dir: Path, layout: str, title_color: str,
-                        font_size: int) -> Path:
-    """ffmpeg로 세로 클립 생성 (자막 없음)."""
-    output_dir = job_dir / "clips"
-    output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / f"clip_{clip['index']:02d}_{clip['clip_id']}.mp4"
-
-    safe_video = _to_ascii_path(video_path, job_dir, f"input{video_path.suffix}")
-
-    if layout == "letterbox":
-        vf = "scale=1080:-2:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black"
-    else:
-        vf = "crop=in_h*9/16:in_h,scale=1080:1920"
-
-    cmd = [
-        "ffmpeg",
-        "-ss", str(clip["start"]),
-        "-i", str(safe_video),
-        "-t", str(clip["end"] - clip["start"]),
-        "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
-        "-movflags", "+faststart", "-r", "30",
-        str(output_path), "-y",
-    ]
-    result = run_cmd(cmd, f"ffmpeg-clip-{clip['index']}")
-    if result.returncode != 0 or not output_path.exists():
-        raise RuntimeError(f"클립 생성 실패 (clip {clip['index']}):\n{result.stderr[-600:]}")
-    return output_path
+def step_generate_clip(video_path, clip, job_dir, clips_dir, idx):
+    try:
+        start = clip["start"]
+        end = clip["end"]
+        duration = end - start
+        out_path = os.path.join(clips_dir, f"clip_{idx:02d}.mp4")
+        cmd = [
+            "ffmpeg",
+            "-ss", str(start),
+            "-i", video_path,
+            "-t", str(duration),
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            "-y",
+            out_path,
+        ]
+        subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if os.path.exists(out_path):
+            return out_path
+        return None
+    except Exception:
+        return None
 
 
 # ── Streamlit UI ─────────────────────────────────────────────────────────────
@@ -476,16 +468,19 @@ def main():
     progress_bar = st.progress(0)
     results = []
 
+    clips_dir = os.path.join(str(job_dir), "clips")
+    os.makedirs(clips_dir, exist_ok=True)
+
     for i, clip in enumerate(selected):
         with st.status(f"클립 {clip['index']}: {clip['title']} 렌더링 중...", expanded=False) as status:
-            try:
-                out_path = step_generate_clip(
-                    clip, meta["video_path"],
-                    job_dir, layout, title_color, font_size,
-                )
-                results.append((clip, out_path))
-                status.update(label=f"✅ 클립 {clip['index']} 완료 ({out_path.stat().st_size // 1024}KB)", state="complete")
-            except Exception as e:
+            out_path = step_generate_clip(
+                str(meta["video_path"]), clip, job_dir, clips_dir, clip["index"],
+            )
+            if out_path:
+                results.append((clip, Path(out_path)))
+                size_kb = os.path.getsize(out_path) // 1024
+                status.update(label=f"✅ 클립 {clip['index']} 완료 ({size_kb}KB)", state="complete")
+            else:
                 status.update(label=f"❌ 클립 {clip['index']} 실패", state="error")
                 st.markdown(f'<div class="error-box">❌ {e}</div>', unsafe_allow_html=True)
                 log.error("Clip %d failed: %s", clip["index"], e)
