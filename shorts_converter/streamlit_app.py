@@ -171,23 +171,38 @@ def step_transcribe(audio_path: Path, model_size: str = "base") -> dict:
 
 def step_analyze(transcript: str, segments: list, duration: float, channel: str) -> list:
     """Claude API로 후킹 포인트 추출."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
+    import traceback as _tb
 
-    def _safe(text: str) -> str:
-        return text.encode("utf-8", errors="replace").decode("utf-8")
+    try:
+        # ── 체크포인트 1: 환경변수 ──────────────────────────────
+        st.info(f"[DEBUG 1] PYTHONIOENCODING={os.environ.get('PYTHONIOENCODING')} / PYTHONUTF8={os.environ.get('PYTHONUTF8')}")
 
-    safe_transcript = _safe(transcript)
-    segments_text = "\n".join(
-        f"[{s['start']:.1f}s-{s['end']:.1f}s] {_safe(s['text'])}"
-        for s in segments
-    )
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise RuntimeError("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다.")
 
-    prompt = f"""당신은 SNS 바이럴 콘텐츠 전문가입니다.
+        def _safe(text: str) -> str:
+            return text.encode("utf-8", errors="replace").decode("utf-8")
+
+        # ── 체크포인트 2: transcript 안전 처리 ──────────────────
+        st.info(f"[DEBUG 2] transcript 길이={len(transcript)}, 타입={type(transcript)}")
+        safe_transcript = _safe(transcript)
+
+        # ── 체크포인트 3: segments 처리 ─────────────────────────
+        st.info(f"[DEBUG 3] segments 수={len(segments)}")
+        segments_text = "\n".join(
+            f"[{s['start']:.1f}s-{s['end']:.1f}s] {_safe(s['text'])}"
+            for s in segments
+        )
+
+        # ── 체크포인트 4: prompt 조립 ────────────────────────────
+        safe_channel = _safe(channel)
+        st.info(f"[DEBUG 4] channel={safe_channel!r}, segments_text 길이={len(segments_text)}")
+
+        prompt = f"""당신은 SNS 바이럴 콘텐츠 전문가입니다.
 아래 유튜브 자막을 분석해서 쇼츠/릴스 클립으로 만들기 좋은 구간 최대 6개를 선별하세요.
 
-영상 길이: {duration:.0f}초 | 채널: {_safe(channel)}
+영상 길이: {duration:.0f}초 | 채널: {safe_channel}
 
 자막:
 {segments_text}
@@ -211,27 +226,35 @@ JSON만 응답 (다른 텍스트 없이):
   ]
 }}"""
 
-    # prompt는 str(유니코드)이므로 Anthropic SDK가 내부적으로 UTF-8로 직렬화함
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = message.content[0].text
-    log.info("Claude response: %s", text[:300].encode("utf-8", errors="replace").decode("utf-8"))
+        # ── 체크포인트 5: Claude API 호출 ───────────────────────
+        st.info(f"[DEBUG 5] prompt 길이={len(prompt)}, Claude API 호출 시작")
+        client = anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
 
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
-        raise RuntimeError(f"Claude 응답 파싱 실패: {text[:200]}")
+        # ── 체크포인트 6: 응답 파싱 ─────────────────────────────
+        text = message.content[0].text
+        st.info(f"[DEBUG 6] Claude 응답 길이={len(text)}")
 
-    data = json.loads(match.group())
-    clips = data.get("clips", [])
-    for i, c in enumerate(clips):
-        c["clip_id"] = str(uuid.uuid4())[:8]
-        c["index"] = i + 1
-        c["channel"] = channel
-    return clips
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise RuntimeError(f"Claude 응답 파싱 실패: {text[:200]}")
+
+        data = json.loads(match.group())
+        clips = data.get("clips", [])
+        for i, c in enumerate(clips):
+            c["clip_id"] = str(uuid.uuid4())[:8]
+            c["index"] = i + 1
+            c["channel"] = channel
+        return clips
+
+    except Exception:
+        tb = _tb.format_exc()
+        st.error(f"**step_analyze 전체 traceback:**\n```\n{tb}\n```")
+        raise
 
 
 def step_generate_clip(clip: dict, video_path: Path, segments: list,
