@@ -357,13 +357,9 @@ def main():
     # ── 사이드바 설정 ──
     with st.sidebar:
         st.markdown("### 🔑 Anthropic API 키")
-        # 우선순위: 1) 사이드바 입력 2) st.secrets 3) 환경변수
-        _env_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        _secret_key = st.secrets.get("ANTHROPIC_API_KEY", "") if hasattr(st, "secrets") else ""
-        _default_key = _secret_key or _env_key
         api_key_input = st.text_input(
             "API Key",
-            value=_default_key,
+            value=os.environ.get("ANTHROPIC_API_KEY", ""),
             type="password",
             placeholder="sk-ant-...",
             help="환경변수 ANTHROPIC_API_KEY가 설정돼 있으면 자동으로 채워집니다.",
