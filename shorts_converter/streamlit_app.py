@@ -290,64 +290,27 @@ def _to_ascii_path(src: Path, dst_dir: Path, name: str) -> Path:
     return dst
 
 
-def step_generate_clip(clip: dict, video_path: Path, segments: list,
+def step_generate_clip(clip: dict, video_path: Path,
                         job_dir: Path, layout: str, title_color: str,
-                        font_size: int, show_subs: bool) -> Path:
-    """ffmpeg로 세로 클립 생성. 모든 경로를 ASCII-only로 보장."""
-    # ASCII-safe 출력 디렉터리 (TEMP_DIR 하위는 이미 ASCII)
+                        font_size: int) -> Path:
+    """ffmpeg로 세로 클립 생성 (자막 없음)."""
     output_dir = job_dir / "clips"
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / f"clip_{clip['index']:02d}_{clip['clip_id']}.mp4"
 
-    # 입력 영상이 한글 경로면 ASCII 경로로 복사
     safe_video = _to_ascii_path(video_path, job_dir, f"input{video_path.suffix}")
 
-    font_path = find_korean_font()
-    # fontfile 경로도 ASCII 여부 확인 후 사용
-    if font_path:
-        try:
-            font_path.encode("ascii")
-            font_opt = f":fontfile='{font_path}'"
-        except (UnicodeEncodeError, AttributeError):
-            font_opt = ""   # ASCII 불가 폰트 경로는 생략
-    else:
-        font_opt = ""
-
-    title_e = esc(clip["title"])
-    channel_e = esc(f"@{clip['channel']}" if clip.get("channel") else "")
-    tags = " ".join(f"#{t.lstrip('#')}" for t in clip.get("hashtags", [])[:4])
-    tags_e = esc(tags)
-    c = title_color
-    sz = font_size
-
     if layout == "letterbox":
-        base = "scale=1080:-2:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black"
+        vf = "scale=1080:-2:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black"
     else:
-        base = "crop=in_h*9/16:in_h,scale=1080:1920"
-
-    filters = [
-        base,
-        f"drawtext=text='{title_e}'{font_opt}:x=(w-text_w)/2:y=80:fontsize={sz}:fontcolor={c}:box=1:boxcolor=black@0.65:boxborderw=18:shadowx=2:shadowy=2:shadowcolor=black@0.8",
-    ]
-    if channel_e:
-        filters.append(f"drawtext=text='{channel_e}'{font_opt}:x=(w-text_w)/2:y=h-130:fontsize=34:fontcolor=white@0.95:box=1:boxcolor=black@0.55:boxborderw=12")
-    if tags_e:
-        filters.append(f"drawtext=text='{tags_e}'{font_opt}:x=(w-text_w)/2:y=h-75:fontsize=28:fontcolor=yellow@0.9:box=1:boxcolor=black@0.4:boxborderw=8")
-
-    # ASS 자막 — output_dir 은 이미 ASCII 경로
-    if show_subs and segments:
-        ass_path = _write_ass(segments, clip["start"], clip["end"], output_dir, clip["clip_id"])
-        if ass_path:
-            # Windows 역슬래시를 ffmpeg용 슬래시로 변환
-            ass_ffmpeg = ass_path.replace("\\", "/")
-            filters.append(f"ass='{ass_ffmpeg}'")
+        vf = "crop=in_h*9/16:in_h,scale=1080:1920"
 
     cmd = [
         "ffmpeg",
         "-ss", str(clip["start"]),
         "-i", str(safe_video),
         "-t", str(clip["end"] - clip["start"]),
-        "-vf", ",".join(filters),
+        "-vf", vf,
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart", "-r", "30",
@@ -357,35 +320,6 @@ def step_generate_clip(clip: dict, video_path: Path, segments: list,
     if result.returncode != 0 or not output_path.exists():
         raise RuntimeError(f"클립 생성 실패 (clip {clip['index']}):\n{result.stderr[-600:]}")
     return output_path
-
-
-def _write_ass(segments, start, end, out_dir, clip_id) -> Optional[str]:
-    def tf(t):
-        h, r = divmod(t, 3600)
-        m, s = divmod(r, 60)
-        return f"{int(h)}:{int(m):02d}:{s:05.2f}"
-
-    lines = [
-        "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n",
-        "[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\n",
-        "Style: Default,Arial,44,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,60,60,120,1\n\n",
-        "[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n",
-    ]
-    found = False
-    for seg in segments:
-        if seg["end"] <= start or seg["start"] >= end:
-            continue
-        rs = max(0.0, seg["start"] - start)
-        re_ = min(end - start, seg["end"] - start)
-        text = seg["text"].strip().replace("\n", " ")
-        if text:
-            lines.append(f"Dialogue: 0,{tf(rs)},{tf(re_)},Default,,0,0,0,,{text}\n")
-            found = True
-    if not found:
-        return None
-    path = out_dir / f"sub_{clip_id}.ass"
-    path.write_text("".join(lines), encoding="utf-8")
-    return str(path)
 
 
 # ── Streamlit UI ─────────────────────────────────────────────────────────────
@@ -419,7 +353,7 @@ def main():
         title_color = st.selectbox("제목 색상", ["white", "yellow", "#00ffcc", "#ff6b6b"],
                                     format_func=lambda x: {"white":"흰색","yellow":"노랑","#00ffcc":"민트","#ff6b6b":"빨강"}.get(x,x))
         font_size = st.slider("제목 폰트 크기", 28, 80, 52)
-        show_subs = st.toggle("자막 자동 삽입", value=True)
+
         st.divider()
         st.markdown("**필요 패키지**")
         st.code("pip install -r requirements.txt\napt install ffmpeg", language="bash")
@@ -546,8 +480,8 @@ def main():
         with st.status(f"클립 {clip['index']}: {clip['title']} 렌더링 중...", expanded=False) as status:
             try:
                 out_path = step_generate_clip(
-                    clip, meta["video_path"], stt["segments"],
-                    job_dir, layout, title_color, font_size, show_subs,
+                    clip, meta["video_path"],
+                    job_dir, layout, title_color, font_size,
                 )
                 results.append((clip, out_path))
                 status.update(label=f"✅ 클립 {clip['index']} 완료 ({out_path.stat().st_size // 1024}KB)", state="complete")
