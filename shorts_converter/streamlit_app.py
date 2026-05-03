@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import uuid
 import subprocess
@@ -87,7 +88,7 @@ def run_cmd(cmd: list, label: str = "") -> subprocess.CompletedProcess:
 def step_download(url: str, job_dir: Path) -> dict:
     """yt-dlp로 영상 다운로드 후 메타데이터 반환."""
     result = run_cmd([
-        "yt-dlp",
+        sys.executable, "-m", "yt_dlp",
         "-f", "best[height<=720][ext=mp4]/best[height<=720]/best",
         "--output", str(job_dir / "video.%(ext)s"),
         "--write-info-json",
