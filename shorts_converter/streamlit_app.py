@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+from dotenv import load_dotenv
+
+# shorts_converter/.env 파일을 자동으로 읽어 환경변수로 로드
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 os.environ["PYTHONIOENCODING"] = "utf-8"
 os.environ["PYTHONUTF8"] = "1"
