@@ -11,7 +11,6 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-import httpx
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env", override=True)
@@ -270,9 +269,7 @@ JSON만 응답 (다른 텍스트 없이):
   ]
 }}"""
 
-    safe_key = api_key.encode("ascii", errors="replace").decode("ascii")
-    http_client = httpx.Client(headers={"x-api-key": safe_key}, timeout=120.0)
-    client = anthropic.Anthropic(api_key=safe_key, http_client=http_client)
+    client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=2048,
