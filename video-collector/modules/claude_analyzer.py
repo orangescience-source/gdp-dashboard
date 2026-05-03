@@ -1,7 +1,7 @@
 import json
+import os
 import time
 import anthropic
-from config import ANTHROPIC_API_KEY
 
 _client = None
 
@@ -13,7 +13,13 @@ KRW_RATE = 1380
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY가 설정되지 않았습니다. "
+                "사이드바에서 API 키를 입력하거나 .env 파일을 확인하세요."
+            )
+        _client = anthropic.Anthropic(api_key=api_key)
     return _client
 
 
