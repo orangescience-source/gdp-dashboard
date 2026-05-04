@@ -289,18 +289,43 @@ JSON만 응답 (다른 텍스트 없이):
     return clips
 
 
+def _run_ffmpeg_clip(video_path: str, start: float, duration: float,
+                      vf: str, out_path: str) -> bool:
+    """공통 ffmpeg 클립 인코딩 실행. 성공 여부를 반환."""
+    cmd = [
+        "ffmpeg",
+        "-ss", str(start),
+        "-i", video_path,
+        "-t", str(duration),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
+        "-movflags", "+faststart",
+        "-y", out_path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
+    log.info("ffmpeg exit=%d | %s", result.returncode, result.stderr[-200:])
+    return result.returncode == 0 and os.path.exists(out_path)
+
+
 def step_generate_clip(video_path: str, clip: dict, clips_dir: str,
                         layout: str, title_color: str, title_font_size: int,
                         segments: list, sub_font_size: int, sub_color: str,
                         sub_box: bool, sub_position: str,
                         start_override: Optional[float] = None,
-                        end_override: Optional[float] = None) -> Optional[str]:
-    """9:16 세로 클립 생성 (제목·채널명·나레이션 자막 오버레이)."""
+                        end_override: Optional[float] = None) -> tuple[Optional[str], Optional[str]]:
+    """9:16 세로 클립을 raw(자막 없음)와 styled(오버레이 포함) 두 버전으로 생성.
+
+    Returns:
+        (raw_path, styled_path) — 실패한 버전은 None.
+    """
     try:
         start    = start_override if start_override is not None else clip["start"]
         end      = end_override   if end_override   is not None else clip["end"]
         duration = end - start
-        out_path = os.path.join(clips_dir, f"clip_{clip['index']:02d}_{clip['clip_id']}.mp4")
+        base     = f"clip_{clip['index']:02d}_{clip['clip_id']}"
+        raw_path    = os.path.join(clips_dir, f"{base}_raw.mp4")
+        styled_path = os.path.join(clips_dir, f"{base}.mp4")
 
         font_path = _find_font()
         fopt = _font_opt(font_path)
@@ -308,7 +333,7 @@ def step_generate_clip(video_path: str, clip: dict, clips_dir: str,
         title_e   = _esc(clip.get("title", ""))
         channel_e = _esc(f"@{clip['channel']}" if clip.get("channel") else "")
 
-        # ── 레이아웃 ───────────────────────────────────────────
+        # ── 레이아웃 필터 (두 버전 공통) ──────────────────────
         if layout == "crop":
             layout_vf = "crop=in_h*9/16:in_h,scale=1080:1920"
         else:
@@ -317,11 +342,14 @@ def step_generate_clip(video_path: str, clip: dict, clips_dir: str,
                 "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black"
             )
 
-        filters = [layout_vf]
+        # ── raw 버전: 레이아웃만 ──────────────────────────────
+        raw_ok = _run_ffmpeg_clip(video_path, start, duration, layout_vf, raw_path)
 
-        # ── 상단 제목 ──────────────────────────────────────────
+        # ── styled 버전: 제목 + 채널명 + 자막 오버레이 ────────
+        styled_filters = [layout_vf]
+
         if title_e:
-            filters.append(
+            styled_filters.append(
                 f"drawtext=text='{title_e}'{fopt}"
                 f":x=(w-text_w)/2:y=60"
                 f":fontsize={title_font_size}:fontcolor={title_color}"
@@ -329,54 +357,49 @@ def step_generate_clip(video_path: str, clip: dict, clips_dir: str,
                 f":shadowx=2:shadowy=2:shadowcolor=black@0.7"
             )
 
-        # ── 하단 채널명 ────────────────────────────────────────
         if channel_e:
-            filters.append(
+            styled_filters.append(
                 f"drawtext=text='{channel_e}'{fopt}"
                 f":x=(w-text_w)/2:y=h-80"
                 f":fontsize=36:fontcolor=white@0.9"
                 f":borderw=2:bordercolor=black"
             )
 
-        # ── 나레이션 자막 (Whisper 세그먼트) ─────────────────
         sub_filters = _subtitle_filters(
             segments, start, end, fopt,
             sub_font_size, sub_color, sub_box, sub_position,
         )
-        filters.extend(sub_filters)
+        styled_filters.extend(sub_filters)
 
-        vf = ",".join(filters)
-
-        cmd = [
-            "ffmpeg",
-            "-ss", str(start),
-            "-i", video_path,
-            "-t", str(duration),
-            "-vf", vf,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "aac", "-b:a", "128k",
-            "-movflags", "+faststart",
-            "-y", out_path,
-        ]
-        result = subprocess.run(
-            cmd, capture_output=True, encoding="utf-8", errors="replace"
+        styled_ok = _run_ffmpeg_clip(
+            video_path, start, duration, ",".join(styled_filters), styled_path
         )
-        log.info("ffmpeg exit=%d | %s", result.returncode, result.stderr[-200:])
 
-        return out_path if os.path.exists(out_path) else None
+        return (
+            raw_path    if raw_ok    else None,
+            styled_path if styled_ok else None,
+        )
     except Exception:
         log.exception("step_generate_clip failed")
-        return None
+        return None, None
 
 
 # ── ZIP ───────────────────────────────────────────────────────────────────────
 
-def create_zip_bytes(results: list) -> bytes:
+def create_zip_bytes(results: list, version: str = "styled") -> bytes:
+    """version: 'raw' | 'styled' | 'both'."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for clip, path in results:
-            fname = f"clip_{clip['index']:02d}_{clip['title'][:12]}.mp4"
-            zf.write(str(path), fname)
+        for d in results:
+            clip       = d["clip"]
+            raw_path   = d.get("raw_path")
+            styled_path = d.get("styled_path")
+            base_name  = f"clip_{clip['index']:02d}_{clip['title'][:12]}"
+
+            if version in ("raw", "both") and raw_path and os.path.exists(raw_path):
+                zf.write(raw_path, f"{base_name}_raw.mp4")
+            if version in ("styled", "both") and styled_path and os.path.exists(styled_path):
+                zf.write(styled_path, f"{base_name}.mp4")
     return buf.getvalue()
 
 
@@ -600,42 +623,57 @@ def main():
             adj_end   = st.session_state.get(f"e_{clip['clip_id']}", clip["end"])
 
             with st.status(f"클립 {clip['index']}: {clip['title']}", expanded=False) as s:
-                out_path = step_generate_clip(
+                raw_path, styled_path = step_generate_clip(
                     str(meta["video_path"]), clip, clips_dir,
                     layout, title_color, title_font_size,
                     stt["segments"], sub_font_size, sub_color, sub_box, sub_position,
                     start_override=adj_start, end_override=adj_end,
                 )
-                if out_path:
-                    results.append((clip, Path(out_path)))
-                    size_kb = os.path.getsize(out_path) // 1024
+                if raw_path or styled_path:
+                    results.append({
+                        "clip": clip,
+                        "raw_path": raw_path,
+                        "styled_path": styled_path,
+                    })
+                    size_kb = os.path.getsize(styled_path or raw_path) // 1024
                     s.update(label=f"✅ 클립 {clip['index']} ({size_kb}KB)", state="complete")
                 else:
                     s.update(label=f"❌ 클립 {clip['index']} 실패", state="error")
 
             progress.progress((i + 1) / len(selected_clips))
 
-        st.session_state["gen_results"] = [
-            {"clip": c, "path": str(p)} for c, p in results
-        ]
+        st.session_state["gen_results"] = results
 
     # ── 결과 표시 ─────────────────────────────────────────────
     if "gen_results" not in st.session_state or not st.session_state["gen_results"]:
         return
 
-    results_data = st.session_state["gen_results"]
-    results_pairs = [(d["clip"], Path(d["path"])) for d in results_data if Path(d["path"]).exists()]
+    results_data = [
+        d for d in st.session_state["gen_results"]
+        if d.get("raw_path") or d.get("styled_path")
+    ]
 
-    if not results_pairs:
+    if not results_data:
         return
 
     st.divider()
-    st.markdown(f"### ⬇️ 생성된 클립 ({len(results_pairs)}개)")
+    st.markdown(f"### ⬇️ 생성된 클립 ({len(results_data)}개)")
 
-    # ⑤ ZIP 일괄 다운로드
-    zip_bytes = create_zip_bytes(results_pairs)
+    # ── ZIP 일괄 다운로드 (버전 선택) ────────────────────────
+    zip_version = st.radio(
+        "ZIP에 포함할 버전",
+        options=["styled", "raw", "both"],
+        format_func=lambda x: {
+            "styled": "자막 포함",
+            "raw":    "자막 없음",
+            "both":   "둘 다 포함",
+        }[x],
+        horizontal=True,
+        key="zip_version_radio",
+    )
+    zip_bytes = create_zip_bytes(results_data, version=zip_version)
     st.download_button(
-        label=f"📦 전체 ZIP 다운로드 ({len(results_pairs)}개)",
+        label=f"📦 전체 ZIP 다운로드 ({len(results_data)}개 · {zip_version})",
         data=zip_bytes,
         file_name="shorts_clips.zip",
         mime="application/zip",
@@ -644,8 +682,13 @@ def main():
 
     st.divider()
 
-    # ③ 클립별 미리보기 + 개별 다운로드 + 재생성
-    for clip, path in results_pairs:
+    # ── 클립별 미리보기 + 개별 다운로드 + 재생성 ─────────────
+    for d in results_data:
+        clip        = d["clip"]
+        raw_path    = d.get("raw_path")
+        styled_path = d.get("styled_path")
+        preview_path = styled_path or raw_path  # 미리보기는 styled 우선
+
         with st.expander(
             f"[{clip['index']}] {clip['title']}  ·  "
             f"{fmt_time(clip['start'])}~{fmt_time(clip['end'])}",
@@ -654,7 +697,7 @@ def main():
             vid_col, info_col = st.columns([1, 1])
 
             with vid_col:
-                st.video(str(path))  # ③ 인라인 미리보기
+                st.video(str(preview_path))
 
             with info_col:
                 st.markdown(f"**{clip['title']}**")
@@ -668,17 +711,29 @@ def main():
                 )
                 st.markdown(tags_html, unsafe_allow_html=True)
 
-                with open(path, "rb") as f:
-                    st.download_button(
-                        label="📥 다운로드",
-                        data=f,
-                        file_name=f"shorts_{clip['index']:02d}.mp4",
-                        mime="video/mp4",
-                        key=f"dl_{clip['clip_id']}",
-                        use_container_width=True,
-                    )
+                # ── 두 가지 다운로드 버튼 ─────────────────────
+                if raw_path and os.path.exists(raw_path):
+                    with open(raw_path, "rb") as f:
+                        st.download_button(
+                            label="⬇️ 자막 없는 클립 다운로드",
+                            data=f,
+                            file_name=f"shorts_{clip['index']:02d}_raw.mp4",
+                            mime="video/mp4",
+                            key=f"dl_raw_{clip['clip_id']}",
+                            use_container_width=True,
+                        )
+                if styled_path and os.path.exists(styled_path):
+                    with open(styled_path, "rb") as f:
+                        st.download_button(
+                            label="⬇️ 자막 포함 클립 다운로드",
+                            data=f,
+                            file_name=f"shorts_{clip['index']:02d}.mp4",
+                            mime="video/mp4",
+                            key=f"dl_styled_{clip['clip_id']}",
+                            use_container_width=True,
+                        )
 
-                # ④ 재생성
+                # ── 재생성 ────────────────────────────────────
                 st.markdown("**구간 재조정 후 재생성**")
                 rc1, rc2 = st.columns(2)
                 re_start = rc1.number_input(
@@ -693,25 +748,25 @@ def main():
                 )
                 if st.button("🔄 재생성", key=f"regen_{clip['clip_id']}"):
                     with st.spinner("재생성 중..."):
-                        new_path = step_generate_clip(
+                        new_raw, new_styled = step_generate_clip(
                             str(meta["video_path"]), clip, clips_dir,
                             layout, title_color, title_font_size,
                             stt["segments"], sub_font_size, sub_color, sub_box, sub_position,
                             start_override=re_start, end_override=re_end,
                         )
-                    if new_path:
-                        # 세션 결과 업데이트
-                        for d in st.session_state["gen_results"]:
-                            if d["clip"]["clip_id"] == clip["clip_id"]:
-                                d["path"] = new_path
-                                d["clip"]["start"] = re_start
-                                d["clip"]["end"]   = re_end
+                    if new_raw or new_styled:
+                        for entry in st.session_state["gen_results"]:
+                            if entry["clip"]["clip_id"] == clip["clip_id"]:
+                                entry["raw_path"]    = new_raw
+                                entry["styled_path"] = new_styled
+                                entry["clip"]["start"] = re_start
+                                entry["clip"]["end"]   = re_end
                         st.success("재생성 완료!")
                         st.rerun()
                     else:
                         st.error("재생성 실패")
 
-    st.success(f"🎉 {len(results_pairs)}개 클립 완료!")
+    st.success(f"🎉 {len(results_data)}개 클립 완료!")
 
 
 if __name__ == "__main__":
