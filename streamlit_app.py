@@ -1,25 +1,30 @@
 import io
 import os
-import re
 import json
 from datetime import datetime
-
-import anthropic
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import streamlit as st
+import anthropic
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-
-from session_state_manager import init_session_state, reset_pipeline
-from tab_thumbnail import render_thumbnail_tab
 from tab_topic import render_topic_tab
+from tab_thumbnail import render_thumbnail_tab
+from tab_structure import render_structure_tab
+from tab_script import render_script_tab
+from tab_upload import render_upload_tab
+from tab_visualization import render_visualization_tab
+from session_state_manager import init_session_state, reset_pipeline
+from tab_settings import render_settings_tab
+from tab_analysis import render_analysis_tab
+from tab_ai_insights import render_ai_insights_tab
+from tab_transcript import render_transcript_tab
 
 st.set_page_config(
-    page_title="주제 발굴기",
-    page_icon="🔍",
+    page_title="정치 유튜브 니치 발굴기",
+    page_icon="📡",
     layout="wide",
 )
 
@@ -27,32 +32,18 @@ init_session_state()
 
 # ── API Key 처리 ──────────────────────────────────────────────────────────────
 
-def get_anthropic_api_key() -> str:
-    """st.secrets → 환경변수 순으로 Anthropic API 키를 가져온다."""
+def get_api_key() -> str:
+    """st.secrets → 환경변수 → 사이드바 입력 순으로 API 키를 가져온다."""
     try:
         key = st.secrets.get("ANTHROPIC_API_KEY", "")
         if key:
             return key
     except Exception:
         pass
-    return os.environ.get("ANTHROPIC_API_KEY", "")
-
-
-def resolve_youtube_api_key(sidebar_input: str) -> str:
-    """사이드바 입력 → 환경변수 → Streamlit secrets 순으로 YouTube API 키를 결정한다."""
-    if sidebar_input:
-        return sidebar_input
-    env_key = os.environ.get("YOUTUBE_API_KEY", "")
-    if env_key:
-        return env_key
-    try:
-        secret_key = st.secrets.get("YOUTUBE_API_KEY", "")
-        if secret_key:
-            return secret_key
-    except Exception:
-        pass
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if key:
+        return key
     return ""
-
 
 # ── 프롬프트 & Claude 호출 ────────────────────────────────────────────────────
 
@@ -82,7 +73,6 @@ JSON_SCHEMA = """{
   "top_recommendation": "가장 추천하는 니치명"
 }"""
 
-
 def build_prompt(keywords: str, n: int) -> str:
     return f"""사용자 관심 키워드: {keywords}
 분석할 니치 수: {n}개
@@ -91,9 +81,9 @@ def build_prompt(keywords: str, n: int) -> str:
 
 각 항목 평가 기준:
 - competition (경쟁도): 1=매우 낮음(유리), 10=매우 높음(불리)
-- monetization (수익성): 1=낮음, 10=매우 높음
+- monetization (수익성): 1=낙음, 10=매우 높음
 - trend (트렌드): 1=하락 중, 10=급성장 중
-- opportunity_score (종합 기회 점수): 경쟁도 낮고, 수익성 높고, 트렌드 높을수록 높은 점수
+- opportunity_score (종합 기회 점수): 경쟁도 낙고, 수익성 높고, 트렌드 높을수록 높은 점수
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {JSON_SCHEMA}"""
@@ -109,14 +99,18 @@ def analyze_niches(api_key: str, keywords: str, n: int) -> dict:
     )
     raw = response.content[0].text.strip()
 
+    # 1단계: 코드 펜스 제거
+    import re
     raw = re.sub(r'^```(?:json)?\s*', '', raw)
     raw = re.sub(r'\s*```$', '', raw).strip()
 
+    # 2단계: 직접 파싱
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
 
+    # 3단계: 중괄호 균형 추출 (응답이 잘린 경우 대비)
     start = raw.find('{')
     if start == -1:
         raise json.JSONDecodeError("JSON 시작 없음", raw, 0)
@@ -129,7 +123,6 @@ def analyze_niches(api_key: str, keywords: str, n: int) -> dict:
             if depth == 0:
                 return json.loads(raw[start:i + 1])
     raise json.JSONDecodeError("JSON 추출 실패 — 응답이 잘렸습니다", raw, len(raw))
-
 
 # ── 차트 헬퍼 ─────────────────────────────────────────────────────────────────
 
@@ -144,7 +137,7 @@ def bubble_chart(df: pd.DataFrame):
         color_continuous_scale="RdYlGn",
         size_max=50,
         labels={
-            "competition": "경쟁도 (낮을수록 유리)",
+            "competition": "경쟁도 (낙을수록 유리)",
             "monetization": "수익성 (높을수록 유리)",
             "trend": "트렌드",
             "opportunity_score": "기회 점수",
@@ -175,12 +168,12 @@ def opportunity_bar(df: pd.DataFrame):
 
 
 def radar_chart(niche: dict):
-    categories = ["수익성", "트렌드", "기회점수", "경쟁 낮음"]
+    categories = ["수익성", "트렌드", "기회점수", "경쟁 낙음"]
     values = [
         niche["monetization"],
         niche["trend"],
         niche["opportunity_score"],
-        10 - niche["competition"] + 1,
+        10 - niche["competition"] + 1,  # 경쟁도 반전
     ]
     fig = go.Figure(
         go.Scatterpolar(
@@ -198,7 +191,6 @@ def radar_chart(niche: dict):
         margin=dict(l=40, r=40, t=40, b=40),
     )
     return fig
-
 
 # ── Excel 내보내기 ────────────────────────────────────────────────────────────
 
@@ -224,6 +216,7 @@ def generate_excel(result: dict, keywords: str) -> bytes:
 
     wb = Workbook()
 
+    # ── 시트 1: 요약 ──────────────────────────────────────────────────────────
     ws1 = wb.active
     ws1.title = "📊 분석 요약"
 
@@ -256,7 +249,7 @@ def generate_excel(result: dict, keywords: str) -> bytes:
     ws1.column_dimensions["B"].width = 60
 
     ws1.append([])
-    headers_sum = ["순위", "니치명", "경쟁도\n(낮을수록 유리)", "수익성", "트렌드", "종합 기회 점수", "예상 월 조회수", "추천 포맷"]
+    headers_sum = ["순위", "니치명", "경쟁도\n(낙을수록 유리)", "수익성", "트렌드", "종합 기회 점수", "예상 월 조회수", "추천 포맷"]
     ws1.append(headers_sum)
     for i, h in enumerate(headers_sum, 1):
         style_header_cell(ws1.cell(ws1.max_row, i))
@@ -282,6 +275,7 @@ def generate_excel(result: dict, keywords: str) -> bytes:
     for col_idx, width in enumerate([6, 22, 12, 10, 10, 14, 18, 12], 1):
         ws1.column_dimensions[get_column_letter(col_idx)].width = width
 
+    # ── 시트 2: 상세 분석 ─────────────────────────────────────────────────────
     ws2 = wb.create_sheet("🗂️ 상세 분석")
     detail_headers = [
         "니치명", "설명", "시청자층",
@@ -318,6 +312,7 @@ def generate_excel(result: dict, keywords: str) -> bytes:
     for col_idx, width in enumerate([22, 45, 30, 10, 10, 10, 14, 18, 12, 14, 35, 25], 1):
         ws2.column_dimensions[get_column_letter(col_idx)].width = width
 
+    # ── 시트 3: 콘텐츠 아이디어 ───────────────────────────────────────────────
     ws3 = wb.create_sheet("💡 콘텐츠 아이디어")
     ws3.append(["니치명", "콘텐츠 아이디어 1", "아이디어 2", "아이디어 3", "아이디어 4", "아이디어 5"])
     for i in range(1, 7):
@@ -368,8 +363,10 @@ def generate_csv(result: dict, keywords: str) -> bytes:
 
 # ── 페이지 레이아웃 ───────────────────────────────────────────────────────────
 
+# 전역 CSS: 탭 글자 크기 확대 + 커스텀 카드 가독성
 st.markdown("""
 <style>
+/* 탭 버튼 글자 크기·굵기 */
 .stTabs [data-baseweb="tab"] {
     font-size: 16px !important;
     font-weight: 600 !important;
@@ -378,23 +375,30 @@ st.markdown("""
 .stTabs [data-baseweb="tab"]:hover {
     color: #4A90E2 !important;
 }
+/* 커스텀 HTML 카드 내 기본 텍스트 강제 */
+.custom-card, .custom-card * {
+    box-sizing: border-box;
+}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🔍 주제 발굴기")
-st.caption("Claude AI로 유망 유튜브 니치와 주제를 분석합니다.")
+st.title("📡 정치 유튜브 니치 발굴기")
+st.caption("YouTube Data API v3 + Claude AI로 고성과 콘텐츠 패턴을 분석합니다.")
 
-tab1, tab2, tab3 = st.tabs(
-    ["🔍 니치 발굴 (키워드)", "📊 주제 발굴", "🎨 썸네일·제목"]
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab_set, tab_ana, tab_ai_ins, tab_transcript = st.tabs(
+    [
+        "🔍 니치 발굴 (키워드)", "📊 주제 발굴", "🎨 썸네일·제목",
+        "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지", "🖼️ 시각화 프롬프트",
+        "⚙️ 채널 설정", "📊 분석결과", "🤖 AI 인사이트", "📝 대본 받아쓰기",
+    ]
 )
 
-# ── 사이드바 ─────────────────────────────────────────────────────────────────
+# ── 사이드바 (니치 발굴 탭용) ─────────────────────────────────────────────────
 
 with st.sidebar:
     st.header("⚙️ 분석 설정")
 
-    # Anthropic API Key
-    api_key = get_anthropic_api_key()
+    api_key = get_api_key()
     if not api_key:
         api_key = st.text_input(
             "Anthropic API Key",
@@ -402,26 +406,6 @@ with st.sidebar:
             placeholder="sk-ant-...",
             help="Anthropic 콘솔에서 발급한 API 키를 입력하세요.",
         )
-    else:
-        st.success("Anthropic API 키 연결됨", icon="✅")
-
-    st.divider()
-
-    # YouTube API Key
-    st.markdown("**YouTube API Key**")
-    yt_key_input = st.text_input(
-        "YouTube API Key",
-        type="password",
-        placeholder="AIzaSy...",
-        help="YouTube Data API v3 키. 주제 발굴 탭의 채널 분석 기능에 필요합니다.",
-        label_visibility="collapsed",
-    )
-    youtube_api_key = resolve_youtube_api_key(yt_key_input)
-    if youtube_api_key:
-        os.environ["YOUTUBE_API_KEY"] = youtube_api_key
-        st.success("YouTube API 키 연결됨", icon="✅")
-    else:
-        st.caption("YouTube API 키가 없으면 채널 검색 기능을 사용할 수 없습니다.")
 
     st.divider()
 
@@ -439,7 +423,7 @@ with st.sidebar:
     st.divider()
     st.caption(
         "점수 기준\n"
-        "- 경쟁도: 낮을수록 진입 유리 (1-10)\n"
+        "- 경쟁도: 낙을수록 진입 유리 (1-10)\n"
         "- 수익성: 높을수록 수익화 쉬움 (1-10)\n"
         "- 트렌드: 높을수록 성장 중 (1-10)\n"
         "- 기회 점수: 세 지표 종합 (1-10)"
@@ -450,10 +434,16 @@ with st.sidebar:
 
     p1_done = bool(st.session_state.get("p1_topic_title"))
     p2_done = bool(st.session_state.get("p2_title"))
+    p3_done = bool(st.session_state.get("p3_structure"))
+    p4_done = bool(st.session_state.get("p4_confirmed"))
+    p6_done = bool(st.session_state.get("p6_confirmed"))
 
     steps = [
-        ("주제 발굴",   p1_done),
-        ("썸네일·제목", p2_done),
+        ("주제 발굴",     p1_done),
+        ("썸네일·제목",   p2_done),
+        ("대본 구조",     p3_done),
+        ("대본 작성",     p4_done),
+        ("업로드 패키지", p6_done),
     ]
     for name, done in steps:
         icon = "✅" if done else "⬜"
@@ -473,7 +463,7 @@ with st.sidebar:
 with tab1:
     if run_btn:
         if not api_key:
-            st.error("Anthropic API 키를 입력해주세요.")
+            st.error("API 키를 입력해주세요.")
         elif not keywords.strip():
             st.warning("관심 키워드를 입력해주세요.")
         else:
@@ -498,6 +488,7 @@ with tab1:
 
         df = pd.DataFrame(niches)
 
+        # ── 섹션 1: 요약 메트릭 ──────────────────────────────────────────────
         st.header("📊 분석 요약", divider="gray")
 
         col1, col2, col3, col4 = st.columns(4)
@@ -506,7 +497,7 @@ with tab1:
         avg_trend = df["trend"].mean()
 
         col1.metric("🏆 최추천 니치", top_rec)
-        col2.metric("📊 평균 경쟁도", f"{avg_comp:.1f} / 10", help="낮을수록 진입 유리")
+        col2.metric("📊 평균 경쟁도", f"{avg_comp:.1f} / 10", help="낙을수록 진입 유리")
         col3.metric("💰 평균 수익성", f"{avg_mono:.1f} / 10")
         col4.metric("📈 평균 트렌드", f"{avg_trend:.1f} / 10")
 
@@ -516,6 +507,7 @@ with tab1:
 
         st.divider()
 
+        # ── 섹션 2: 차트 ─────────────────────────────────────────────────────
         st.header("📈 시각화 분석", divider="gray")
 
         chart_col1, chart_col2 = st.columns(2)
@@ -526,6 +518,7 @@ with tab1:
 
         st.divider()
 
+        # ── 섹션 3: 니치 카드 ────────────────────────────────────────────────
         st.header("🗂️ 니치 상세 분석", divider="gray")
 
         for niche in sorted(niches, key=lambda x: x["opportunity_score"], reverse=True):
@@ -540,7 +533,7 @@ with tab1:
                     st.write(f"**추천 포맷:** {niche['recommended_format']}  |  **업로드 빈도:** {niche['posting_frequency']}")
                     st.write("**점수**")
                     score_data = {
-                        "경쟁도 (낮을수록 유리)": niche["competition"],
+                        "경쟁도 (낙을수록 유리)": niche["competition"],
                         "수익성": niche["monetization"],
                         "트렌드": niche["trend"],
                         "종합 기회 점수": niche["opportunity_score"],
@@ -565,6 +558,7 @@ with tab1:
                     for con in niche.get("cons", []):
                         st.write(f"- {con}")
 
+        # ── 섹션 4: 내보내기 ─────────────────────────────────────────────────
         st.header("☁️ 구글 드라이브로 내보내기", divider="gray")
         st.caption("파일을 다운로드한 후 구글 드라이브에 업로드하세요.")
 
@@ -634,3 +628,43 @@ with tab2:
 
 with tab3:
     render_thumbnail_tab()
+
+# ── 탭 4: 대본 구조 설계 ──────────────────────────────────────────────────────
+
+with tab4:
+    render_structure_tab()
+
+# ── 탭 5: 대본 작성 ───────────────────────────────────────────────────────────
+
+with tab5:
+    render_script_tab()
+
+# ── 탭 6: 업로드 패키지 ──────────────────────────────────────────────────────
+
+with tab6:
+    render_upload_tab()
+
+# ── 탭 7: 시각화 프롬프트 ────────────────────────────────────────────────────
+
+with tab7:
+    render_visualization_tab()
+
+# ── 탭 8: 채널 설정 (정치 니치 발굴) ─────────────────────────────────────────
+
+with tab_set:
+    render_settings_tab()
+
+# ── 탭 9: 분석결과 ────────────────────────────────────────────────────────────
+
+with tab_ana:
+    render_analysis_tab()
+
+# ── 탭 10: AI 인사이트 ────────────────────────────────────────────────────────
+
+with tab_ai_ins:
+    render_ai_insights_tab()
+
+# ── 탭 11: 대본 받아쓰기 ─────────────────────────────────────────────────────
+
+with tab_transcript:
+    render_transcript_tab()
