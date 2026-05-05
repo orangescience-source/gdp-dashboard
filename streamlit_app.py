@@ -20,6 +20,7 @@ from session_state_manager import init_session_state, reset_pipeline
 from tab_settings import render_settings_tab
 from tab_analysis import render_analysis_tab
 from tab_ai_insights import render_ai_insights_tab
+from tab_transcript import render_transcript_tab
 
 st.set_page_config(
     page_title="정치 유튜브 니치 발굴기",
@@ -384,11 +385,11 @@ st.markdown("""
 st.title("📡 정치 유튜브 니치 발굴기")
 st.caption("YouTube Data API v3 + Claude AI로 고성과 콘텐츠 패턴을 분석합니다.")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab_set, tab_ana, tab_ai_ins = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab_set, tab_ana, tab_ai_ins, tab_transcript = st.tabs(
     [
         "🔍 니치 발굴 (키워드)", "📊 주제 발굴", "🎨 썸네일·제목",
         "📐 대본 구조", "📝 대본 작성", "📦 업로드 패키지", "🖼️ 시각화 프롬프트",
-        "⚙️ 채널 설정", "📊 분석결과", "🤖 AI 인사이트",
+        "⚙️ 채널 설정", "📊 분석결과", "🤖 AI 인사이트", "📝 대본 받아쓰기",
     ]
 )
 
@@ -662,3 +663,8 @@ with tab_ana:
 
 with tab_ai_ins:
     render_ai_insights_tab()
+
+# ── 탭 11: 대본 받아쓰기 ─────────────────────────────────────────────────────
+
+with tab_transcript:
+    render_transcript_tab()
