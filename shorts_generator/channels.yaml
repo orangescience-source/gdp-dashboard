@@ -1,0 +1,26 @@
+channels:
+  - id: "UC_CHANNEL_ID_HERE"
+    name: "AI 정보채널"
+    color_primary: "#8B5CF6"
+    color_secondary: "#1a1a2e"
+    font: "NanumGothic"
+    logo_path: "assets/logos/ai_channel_logo.png"
+    voice_id: "minimax_male_calm"
+    default_tags: ["AI", "인공지능", "정보", "숏츠"]
+    default_category: "28"
+    bgm_mood_default: "dramatic"
+    bgm_volume_default: 0.15
+    description_footer: "📌 더 많은 AI 정보는 채널 구독!\n문의: example@email.com"
+
+  - id: "UC_CHANNEL_ID_2"
+    name: "재테크 연구소"
+    color_primary: "#10B981"
+    color_secondary: "#064e3b"
+    font: "NanumMyeongjo"
+    logo_path: "assets/logos/finance_logo.png"
+    voice_id: "minimax_female_bright"
+    default_tags: ["재테크", "주식", "ETF", "숏츠"]
+    default_category: "22"
+    bgm_mood_default: "business"
+    bgm_volume_default: 0.20
+    description_footer: "💰 재테크 정보 채널 구독하기!"
