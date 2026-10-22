@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>교원대 연수생 맛집 안내</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root { --bg:#f7f5f0; --card:#fff; --ink:#1f2328; --sub:#5b6168; --line:#e3e0d8; --accent:#1d5f8a; --ok:#1f7a3a; --warn:#a15c00; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181b; --card:#212429; --ink:#eceff2; --sub:#a4abb3; --line:#33383f; --accent:#6db3e0; --ok:#5fc27e; --warn:#e0a24f; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif; font-size:18px; line-height:1.5; }
+  header { padding:20px 16px 8px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .now { color:var(--sub); font-size:16px; }
+  .wrap { max-width:720px; margin:0 auto; padding:0 16px 40px; }
+  .quick { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:12px 0; }
+  .quick button, .opts label { font-size:18px; }
+  .quick button { padding:14px 8px; border:2px solid var(--line); background:var(--card); color:var(--ink); border-radius:12px; cursor:pointer; }
+  .quick button.on { border-color:var(--accent); background:var(--accent); color:#fff; }
+  .opts { display:flex; flex-wrap:wrap; gap:8px 16px; margin:8px 0 12px; }
+  .opts label { display:flex; align-items:center; gap:6px; }
+  .opts input { width:22px; height:22px; }
+  #map { height:260px; border-radius:12px; border:1px solid var(--line); margin-bottom:12px; }
+  .count { color:var(--sub); font-size:16px; margin:4px 0 8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:12px; }
+  .card h2 { font-size:21px; margin:0 0 4px; }
+  .meta { color:var(--sub); font-size:16px; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+  .tag { font-size:15px; padding:2px 10px; border-radius:999px; border:1px solid var(--line); }
+  .open { color:var(--ok); font-weight:700; }
+  .closed { color:var(--warn); font-weight:700; }
+  .note { font-size:16px; margin:6px 0 0; }
+  .btns { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+  .btns a { text-align:center; padding:12px; border-radius:10px; text-decoration:none; font-weight:700; background:var(--accent); color:#fff; }
+  .btns a.alt { background:transparent; color:var(--accent); border:2px solid var(--accent); }
+  footer { color:var(--sub); font-size:14px; text-align:center; margin-top:24px; }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <h1>🍚 교원대 연수생 맛집 안내</h1>
+  <div class="now" id="now"></div>
+</header>
+<main class="wrap">
+  <div class="quick" id="quick">
+    <button data-q="lunch">🍚 점심 빨리</button>
+    <button data-q="group">🍻 저녁 단체</button>
+    <button data-q="cafe">☕ 카페</button>
+    <button data-q="walk">🚶 걸어서</button>
+  </div>
+  <div class="opts">
+    <label><input type="checkbox" id="fOpen"> 지금 영업 중</label>
+    <label><input type="checkbox" id="fPark"> 주차 가능</label>
+  </div>
+  <div id="map"></div>
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+  <footer>정보는 방문 전 전화로 한 번 더 확인해 주세요.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+// 기준점: 한국교원대 정문 (필요하면 좌표 수정)
+const BASE = { name: "한국교원대", lat: 36.6098, lng: 127.3561 };
+const WALK_KM = 1.0;
+const DAYS = ["일","월","화","수","목","금","토"];
+
+let all = [], quick = null, map, layer;
+
+function km(a, b) {
+  const R = 6371, r = x => x * Math.PI / 180;
+  const d1 = r(b.lat - a.lat), d2 = r(b.lng - a.lng);
+  const h = Math.sin(d1/2)**2 + Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(d2/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const toMin = s => { const [h, m] = s.trim().split(":").map(Number); return h * 60 + (m || 0); };
+function inRange(range, t) {
+  if (!range || !range.includes("-")) return false;
+  const [a, b] = range.split("-").map(toMin);
+  return b > a ? t >= a && t < b : t >= a || t < b; // 자정 넘김 처리
+}
+function status(r, now = new Date()) {
+  if (r.closed && r.closed.split(/[\/ ]/).includes(DAYS[now.getDay()])) return ["오늘 휴무", false];
+  const t = now.getHours() * 60 + now.getMinutes();
+  if (!r.hours) return ["영업시간 미확인", false];
+  if (!inRange(r.hours, t)) return ["영업 종료", false];
+  if (inRange(r.break_time, t)) return ["브레이크타임", false];
+  return ["영업 중", true];
+}
+const Y = v => (v || "").trim().toUpperCase() === "Y";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+function filtered() {
+  const open = document.getElementById("fOpen").checked;
+  const park = document.getElementById("fPark").checked;
+  return all.filter(r => {
+    if (open && !status(r)[1]) return false;
+    if (park && !Y(r.parking)) return false;
+    if (quick === "cafe") return r.category === "카페";
+    if (quick === "walk") return r.dist <= WALK_KM;
+    if (quick === "group") return r.category !== "카페" && Number(r.group_seats) >= 10;
+    if (quick === "lunch") return r.category !== "카페" && r.dist <= 3;
+    return true;
+  });
+}
+
+function render() {
+  const rows = filtered();
+  document.getElementById("count").textContent = `${rows.length}곳 · 가까운 순`;
+  document.getElementById("list").innerHTML = rows.map(r => {
+    const [st, ok] = status(r);
+    const tags = [
+      Y(r.parking) && "🅿️ 주차", Number(r.group_seats) >= 10 && `👥 ${r.group_seats}명`,
+      Y(r.reservation) && "📅 예약", Y(r.solo) && "🙋 1인 가능", Y(r.card) && "💳 카드",
+    ].filter(Boolean).map(t => `<span class="tag">${t}</span>`).join("");
+    const walk = Math.round(r.dist / 4.5 * 60), car = Math.max(1, Math.round(r.dist / 30 * 60));
+    const nav = `https://map.kakao.com/link/to/${encodeURIComponent(r.name)},${r.lat},${r.lng}`;
+    return `<article class="card">
+      <h2>${esc(r.name)}</h2>
+      <div class="meta">${esc(r.category)} · ${esc(r.menu)} · ${esc(r.price)}원</div>
+      <div class="meta">📍 ${r.dist.toFixed(1)}km (도보 ${walk}분 / 차 ${car}분) · <span class="${ok ? "open" : "closed"}">${st}</span></div>
+      <div class="meta">🕒 ${esc(r.hours)}${r.break_time ? ` (쉬는 시간 ${esc(r.break_time)})` : ""}${r.closed ? ` · ${esc(r.closed)} 휴무` : ""}</div>
+      <div class="tags">${tags}</div>
+      ${r.note ? `<p class="note">💬 ${esc(r.note)}</p>` : ""}
+      <div class="btns">
+        <a href="tel:${esc(r.phone)}">📞 전화</a>
+        <a class="alt" href="${nav}" target="_blank" rel="noopener">🧭 길찾기</a>
+      </div>
+    </article>`;
+  }).join("") || "<p>조건에 맞는 식당이 없어요. 필터를 바꿔 보세요.</p>";
+
+  layer.clearLayers();
+  rows.forEach(r => L.marker([r.lat, r.lng]).bindPopup(`<b>${esc(r.name)}</b><br>${esc(r.menu)}`).addTo(layer));
+}
+
+function tick() {
+  const d = new Date();
+  document.getElementById("now").textContent =
+    `지금 ${DAYS[d.getDay()]}요일 ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} 기준`;
+}
+
+map = L.map("map").setView([BASE.lat, BASE.lng], 14);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+L.circleMarker([BASE.lat, BASE.lng], { radius: 10, color: "#c0392b", fillOpacity: .8 }).bindPopup("🏫 한국교원대").addTo(map);
+layer = L.layerGroup().addTo(map);
+
+document.getElementById("quick").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  quick = quick === b.dataset.q ? null : b.dataset.q;
+  document.querySelectorAll("#quick button").forEach(x => x.classList.toggle("on", x.dataset.q === quick));
+  render();
+});
+["fOpen", "fPark"].forEach(id => document.getElementById(id).addEventListener("change", render));
+
+tick(); setInterval(() => { tick(); render(); }, 60000);
+Papa.parse("data/restaurants.csv", {
+  download: true, header: true, skipEmptyLines: true,
+  complete: res => {
+    all = res.data.filter(r => Y(r.show) && r.lat && r.lng)
+      .map(r => ({ ...r, lat: +r.lat, lng: +r.lng, dist: km(BASE, { lat: +r.lat, lng: +r.lng }) }))
+      .sort((a, b) => a.dist - b.dist);
+    render();
+  },
+});
+</script>
+</body>
+</html>
