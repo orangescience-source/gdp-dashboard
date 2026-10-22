@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#1d5f8a"/>
+  <!-- steam -->
+  <g fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity=".85">
+    <path d="M196 150c-16 18 16 30 0 50"/>
+    <path d="M256 136c-16 18 16 30 0 50"/>
+    <path d="M316 150c-16 18 16 30 0 50"/>
+  </g>
+  <!-- rice -->
+  <path d="M120 262c0-48 61-70 136-70s136 22 136 70z" fill="#ffffff"/>
+  <!-- bowl -->
+  <path d="M100 258h312c0 84-70 146-156 146S100 342 100 258z" fill="#f2b33d"/>
+  <rect x="206" y="396" width="100" height="26" rx="13" fill="#f2b33d"/>
+  <!-- map pin -->
+  <path d="M392 238c-34 0-60 26-60 58 0 44 60 98 60 98s60-54 60-98c0-32-26-58-60-58z" fill="#e5533c" stroke="#ffffff" stroke-width="12"/>
+  <circle cx="392" cy="294" r="20" fill="#ffffff"/>
+</svg>
